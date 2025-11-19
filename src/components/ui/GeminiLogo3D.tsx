@@ -35,9 +35,11 @@ function Sparkle() {
 }
 
 export default function GeminiLogo3D() {
+    const containerRef = useRef<HTMLDivElement>(null);
+
     return (
-        <div className="w-full h-full">
-            <Canvas camera={{ position: [0, 0, 4], fov: 50 }}>
+        <div ref={containerRef} className="w-full h-full">
+            <Canvas eventSource={containerRef as React.RefObject<HTMLElement>} camera={{ position: [0, 0, 4], fov: 50 }}>
                 <ambientLight intensity={0.5} />
                 <pointLight position={[10, 10, 10]} intensity={1} color="#a855f7" />
                 <pointLight position={[-10, -10, -10]} intensity={1} color="#3b82f6" />

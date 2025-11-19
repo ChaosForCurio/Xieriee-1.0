@@ -72,11 +72,11 @@ export default function RightSidebar() {
                         <img
                             src={item.image}
                             alt={item.prompt}
-                            className="aspect-square w-full object-cover opacity-80 group-hover:opacity-100 transition-opacity"
+                            className="aspect-square w-full object-cover transition-opacity"
                         />
 
                         {/* Overlay Content */}
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-end p-3">
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent flex flex-col justify-end p-3">
                             <p className="text-xs text-white/90 line-clamp-2 mb-2 font-medium">
                                 "{item.prompt}"
                             </p>
@@ -100,21 +100,14 @@ export default function RightSidebar() {
                                 Use Prompt
                             </button>
                         </div>
-
-                        {/* Always visible header */}
-                        <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <button className="p-1 bg-black/50 backdrop-blur-md rounded-full text-white hover:bg-black/70">
-                                <MoreVertical size={14} />
-                            </button>
-                        </div>
                     </div>
                 ))}
-            </div>
 
-            <div className="p-4 border-t border-white/5">
-                <button className="w-full py-2 bg-gradient-to-r from-blue-600 to-purple-600 rounded-lg text-sm font-medium text-white hover:opacity-90 transition-opacity shadow-lg shadow-purple-900/20">
-                    Generate Image
-                </button>
+                {/* Coming Soon Placeholder */}
+                <div className="text-center py-8">
+                    <p className="text-gray-500 text-sm">Community feed coming soon!</p>
+                    <p className="text-gray-600 text-xs mt-2">&quot;Share your creations with the world&quot;</p>
+                </div>
             </div>
         </div>
     );

@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { Suspense } from 'react';
 import LeftSidebar from '../sidebar/LeftSidebar';
 import RightSidebar from '../sidebar/RightSidebar';
 import { useApp } from '@/context/AppContext';
@@ -25,7 +25,9 @@ export default function MainLayout({ children }: MainLayoutProps) {
                         transition={{ duration: 0.3, ease: "easeInOut" }}
                         className="absolute top-0 left-0 h-full w-[280px] flex flex-col shrink-0 z-50 overflow-hidden border-r border-white/5 shadow-2xl shadow-black/50"
                     >
-                        <LeftSidebar />
+                        <Suspense fallback={<div className="h-full w-full bg-[#0a0a0a] flex items-center justify-center"><div className="text-gray-400">Loading...</div></div>}>
+                            <LeftSidebar />
+                        </Suspense>
                     </motion.aside>
                 )}
             </AnimatePresence>

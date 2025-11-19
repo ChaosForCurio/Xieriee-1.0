@@ -8,6 +8,7 @@ if (!apiKey) {
 
 const genAI = new GoogleGenerativeAI(apiKey || "");
 
+// Use gemini-2.0-flash as it is the current available flash model
 export const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
 
 export async function getGeminiResponse(prompt: string) {
@@ -23,16 +24,8 @@ export async function getGeminiResponse(prompt: string) {
         return text;
     } catch (error: any) {
         console.error("Error fetching Gemini response:", error);
-        if (error.message && error.message.includes("404")) {
-            console.log("Attempting to list available models...");
-            try {
-                // @ts-ignore
-                const models = await genAI.getGenerativeModel({ model: "gemini-pro" }).apiKey;
-                // The SDK doesn't have a direct listModels on genAI instance in all versions.
-                // We need to use the model manager if available, or just try a different model.
-            } catch (e) {
-                console.error("Could not list models", e);
-            }
+        if (error.message?.includes("API key not valid")) {
+            return "Configuration Error: The Gemini API key is invalid. Please check your `.env.local` file and ensure `GEMINI_API_KEY` is correct.";
         }
         return `Sorry, I encountered an error processing your request. Details: ${error.message || "Unknown error"}`;
     }

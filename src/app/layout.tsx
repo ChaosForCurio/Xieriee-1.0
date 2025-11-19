@@ -11,6 +11,9 @@ export const metadata: Metadata = {
   description: "Advanced AI Chat Interface",
 };
 
+import { StackProvider, StackTheme } from "@stackframe/stack";
+import { stackServerApp } from "../stack";
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -19,9 +22,13 @@ export default function RootLayout({
   return (
     <html lang="en" className="dark">
       <body className={inter.className}>
-        <AppProvider>
-          <MainLayout>{children}</MainLayout>
-        </AppProvider>
+        <StackProvider app={stackServerApp}>
+          <StackTheme>
+            <AppProvider>
+              <MainLayout>{children}</MainLayout>
+            </AppProvider>
+          </StackTheme>
+        </StackProvider>
       </body>
     </html>
   );

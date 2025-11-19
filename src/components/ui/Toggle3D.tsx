@@ -101,15 +101,17 @@ function PanelIcon({ hovered, side = 'right' }: { hovered: boolean, side?: 'left
 
 export default function Toggle3D({ type, side = 'right', isOpen = false, onClick }: Toggle3DProps) {
     const [hovered, setHovered] = useState(false);
+    const containerRef = useRef<HTMLDivElement>(null);
 
     return (
         <div
+            ref={containerRef}
             className="w-10 h-10 cursor-pointer"
             onMouseEnter={() => setHovered(true)}
             onMouseLeave={() => setHovered(false)}
             onClick={onClick}
         >
-            <Canvas camera={{ position: [0, 0, 4], fov: 50 }}>
+            <Canvas eventSource={containerRef as React.RefObject<HTMLElement>} camera={{ position: [0, 0, 4], fov: 50 }}>
                 <ambientLight intensity={0.8} />
                 <pointLight position={[10, 10, 10]} intensity={1} />
                 <Float speed={2} rotationIntensity={0.2} floatIntensity={0.2}>
