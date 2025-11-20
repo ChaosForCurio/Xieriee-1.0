@@ -138,7 +138,7 @@ export default function ChatArea() {
     return (
         <div className="flex-1 flex flex-col h-full relative overflow-hidden">
             {/* Header with Toggles */}
-            <div className="h-16 flex items-center justify-between px-4 border-b border-white/5 bg-black/20 backdrop-blur-md z-30 shrink-0">
+            <div className="h-16 flex items-center justify-between px-4 border-b border-white/5 bg-black/20 backdrop-blur-md z-30 shrink-0 w-full">
                 <div className="hover:bg-white/5 rounded-lg transition-colors">
                     <Toggle3D type="panel" side="left" isOpen={isLeftSidebarOpen} onClick={toggleLeftSidebar} />
                 </div>
@@ -234,7 +234,7 @@ export default function ChatArea() {
                                     {msg.role === 'user' && (
                                         <div className="w-10 h-10 rounded-full overflow-hidden shrink-0 mt-1 border border-white/10">
                                             <img
-                                                src={userAvatar}
+                                                src={user?.profileImageUrl || userAvatar}
                                                 alt="User"
                                                 className="w-full h-full object-cover"
                                             />
