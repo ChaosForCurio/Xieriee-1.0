@@ -6,42 +6,7 @@ import { useApp } from '@/context/AppContext';
 import Toggle3D from '../ui/Toggle3D';
 
 export default function RightSidebar() {
-    const { setInputPrompt, toggleRightSidebar } = useApp();
-
-    const feedItems = [
-        {
-            id: 1,
-            user: "CyberPunk_Artist",
-            avatar: "https://i.pravatar.cc/150?img=1",
-            prompt: "Neon lit rainy street in Tokyo, cyberpunk style, 8k resolution",
-            likes: "1.2k",
-            image: "https://picsum.photos/seed/cyberpunk/400/400"
-        },
-        {
-            id: 2,
-            user: "NatureLover",
-            avatar: "https://i.pravatar.cc/150?img=5",
-            prompt: "Peaceful mountain lake reflection at sunrise, photorealistic",
-            likes: "856",
-            image: "https://picsum.photos/seed/nature/400/400"
-        },
-        {
-            id: 3,
-            user: "AbstractMind",
-            avatar: "https://i.pravatar.cc/150?img=12",
-            prompt: "Swirling galaxies colliding with geometric shapes, abstract art",
-            likes: "2.4k",
-            image: "https://picsum.photos/seed/abstract/400/400"
-        },
-        {
-            id: 4,
-            user: "RetroFuture",
-            avatar: "https://i.pravatar.cc/150?img=8",
-            prompt: "1980s synthwave sunset grid, retro style, vibrant colors",
-            likes: "3.1k",
-            image: "https://picsum.photos/seed/retro/400/400"
-        }
-    ];
+    const { setInputPrompt, toggleRightSidebar, communityFeed } = useApp();
 
     return (
         <div className="h-full flex flex-col bg-[#0a0a0a] border-l border-white/5">
@@ -56,7 +21,7 @@ export default function RightSidebar() {
             </div>
 
             <div className="flex-1 overflow-y-auto p-4 space-y-6 custom-scrollbar">
-                {feedItems.map((item) => (
+                {communityFeed.map((item) => (
                     <div key={item.id} className="group relative rounded-xl overflow-hidden bg-white/5 border border-white/5 hover:border-white/10 transition-all">
                         {/* User Info - Always Visible at Top */}
                         <div className="absolute top-3 left-3 z-10 flex items-center gap-2 bg-black/60 backdrop-blur-md rounded-full px-3 py-1.5 border border-white/10">

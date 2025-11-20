@@ -16,6 +16,15 @@ export interface SavedChat {
     messages: ChatMessage[];
 }
 
+export interface FeedItem {
+    id: number;
+    user: string;
+    avatar: string;
+    prompt: string;
+    likes: string;
+    image: string;
+}
+
 interface AppContextType {
     inputPrompt: string;
     setInputPrompt: (prompt: string) => void;
@@ -34,6 +43,10 @@ interface AppContextType {
     startNewChat: () => void;
     loadChat: (id: string) => void;
     deleteChat: (id: string) => void;
+    communityFeed: FeedItem[];
+    addToFeed: (item: FeedItem) => void;
+    isUploadModalOpen: boolean;
+    toggleUploadModal: () => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -46,6 +59,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const [isRightSidebarOpen, setIsRightSidebarOpen] = useState(false);
     const [userAvatar, setUserAvatar] = useState('https://i.pravatar.cc/150?img=68');
     const [isGeneratingImage, setIsGeneratingImage] = useState(false);
+    const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
+
+    const [communityFeed, setCommunityFeed] = useState<FeedItem[]>([]);
+
+    const addToFeed = (item: FeedItem) => {
+        setCommunityFeed(prev => [item, ...prev]);
+    };
+
+    const toggleUploadModal = () => {
+        setIsUploadModalOpen(prev => !prev);
+    };
+
     const messageIdCounter = useRef(0);
 
     // Load sidebar states from localStorage on mount
@@ -224,7 +249,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
             savedChats,
             startNewChat,
             loadChat,
-            deleteChat
+            deleteChat,
+            communityFeed,
+            addToFeed,
+            isUploadModalOpen,
+            toggleUploadModal
         }}>
             {children}
         </AppContext.Provider>

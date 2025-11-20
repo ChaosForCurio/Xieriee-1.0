@@ -7,7 +7,7 @@ import Toggle3D from '../ui/Toggle3D';
 import { useUser, UserButton } from "@stackframe/stack";
 
 export default function LeftSidebar() {
-    const { chatHistory, clearHistory, setInputPrompt, toggleLeftSidebar, userAvatar, setUserAvatar, savedChats, startNewChat, loadChat, deleteChat, isLeftSidebarOpen } = useApp();
+    const { chatHistory, clearHistory, setInputPrompt, toggleLeftSidebar, userAvatar, setUserAvatar, savedChats, startNewChat, loadChat, deleteChat, isLeftSidebarOpen, toggleUploadModal } = useApp();
     const user = useUser();
 
     // Mock history removed as per user request
@@ -96,6 +96,19 @@ export default function LeftSidebar() {
 
             {/* User Profile / Footer */}
             <div className="p-4 border-t border-white/5">
+                <button
+                    onClick={toggleUploadModal}
+                    className="w-full flex items-center gap-3 px-3 py-2 mb-2 bg-gradient-to-r from-purple-600/20 to-blue-600/20 hover:from-purple-600/30 hover:to-blue-600/30 border border-purple-500/30 hover:border-purple-500/50 rounded-lg transition-all group"
+                >
+                    <div className="p-1.5 bg-purple-500/20 rounded-md text-purple-400 group-hover:text-purple-300 transition-colors">
+                        <Plus size={16} />
+                    </div>
+                    <div className="text-left">
+                        <div className="text-sm font-medium text-gray-200 group-hover:text-white">Upload Image</div>
+                        <div className="text-[10px] text-gray-500 group-hover:text-gray-400">Share with community</div>
+                    </div>
+                </button>
+
                 <div className="mb-2">
                     {user ? (
                         <div className="flex items-center gap-3 px-3 py-2 hover:bg-white/5 rounded-lg transition-colors text-left group relative">

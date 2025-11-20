@@ -3,6 +3,7 @@
 import React, { Suspense } from 'react';
 import LeftSidebar from '../sidebar/LeftSidebar';
 import RightSidebar from '../sidebar/RightSidebar';
+import UploadModal from '../ui/UploadModal';
 import { useApp } from '@/context/AppContext';
 import { AnimatePresence, motion } from 'framer-motion';
 
@@ -77,6 +78,10 @@ export default function MainLayout({ children }: MainLayoutProps) {
                 <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] rounded-full bg-purple-900/20 blur-[120px]" />
                 <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] rounded-full bg-blue-900/20 blur-[120px]" />
             </div>
+
+            <Suspense fallback={null}>
+                <UploadModal />
+            </Suspense>
         </div>
     );
 }

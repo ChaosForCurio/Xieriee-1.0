@@ -1,12 +1,13 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Send, Paperclip, Mic, Image as ImageIcon, Sparkles, User, Download } from 'lucide-react';
+import { Send, Paperclip, Mic, Sparkles, User, Download } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useApp } from '@/context/AppContext';
 import GeminiLogo3D from '../ui/GeminiLogo3D';
 import Toggle3D from '../ui/Toggle3D';
 import ImageGenerationSkeleton from '../ui/ImageGenerationSkeleton';
+import { BlurTypewriter } from '../ui/BlurTypewriter';
 import { useUser } from "@stackframe/stack";
 
 const ImageMessage = ({ imageUrl, onDownload }: { imageUrl: string, onDownload: (url: string) => void }) => {
@@ -38,7 +39,29 @@ export default function ChatArea() {
     const { inputPrompt, setInputPrompt, chatHistory, addMessage, toggleLeftSidebar, toggleRightSidebar, isLeftSidebarOpen, isRightSidebarOpen, generateImage, isGeneratingImage, userAvatar } = useApp();
     const user = useUser();
     const [isLoading, setIsLoading] = useState(false);
+    const [selectedImage, setSelectedImage] = useState<string | null>(null);
     const messagesEndRef = useRef<HTMLDivElement>(null);
+    const fileInputRef = useRef<HTMLInputElement>(null);
+
+    const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (file) {
+            if (file.type === 'image/png' || file.type === 'image/jpeg' || file.type === 'image/jpg') {
+                const reader = new FileReader();
+                reader.onloadend = () => {
+                    setSelectedImage(reader.result as string);
+                };
+                reader.readAsDataURL(file);
+            } else {
+                alert('Please upload a PNG or JPG image.');
+            }
+        }
+    };
+
+    const handleRemoveImage = () => {
+        setSelectedImage(null);
+        if (fileInputRef.current) fileInputRef.current.value = '';
+    };
 
     const scrollToBottom = () => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -49,10 +72,13 @@ export default function ChatArea() {
     }, [chatHistory, isLoading]);
 
     const handleSend = async () => {
-        if (!inputPrompt.trim() || isLoading) return;
+        if ((!inputPrompt.trim() && !selectedImage) || isLoading) return;
 
         const prompt = inputPrompt.trim();
+        const imageToSend = selectedImage;
+
         setInputPrompt(''); // Clear input immediately
+        setSelectedImage(null); // Clear image immediately
 
         // Check if it's an image generation command
         if (prompt.toLowerCase().startsWith('@image ')) {
@@ -81,15 +107,23 @@ export default function ChatArea() {
             return;
         }
 
-        // Normal chat flow
-        addMessage('user', prompt);
+        // Normal chat flow (with optional image)
+        let userContent = prompt;
+        if (imageToSend) {
+            // If there's an image, we can display it in the chat history using markdown or a custom format
+            // For now, let's append a marker or just rely on the AI response context
+            // But to show it in the UI immediately as a user message:
+            userContent = imageToSend ? `![User Image](${imageToSend})\n${prompt}` : prompt;
+        }
+
+        addMessage('user', userContent);
         setIsLoading(true);
 
         try {
             const res = await fetch('/api/chat', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ prompt }),
+                body: JSON.stringify({ prompt, image: imageToSend }),
             });
 
             const data = await res.json();
@@ -177,7 +211,7 @@ export default function ChatArea() {
                                 </>
                             ) : (
                                 <>
-                                    <h1 className="text-5xl md:text-6xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-400 via-purple-500 to-pink-500 pb-2">
+                                    <h1 className="text-5xl md:text-6xl font-bold text-white pb-2">
                                         Hello, {user.displayName || 'Human'}
                                     </h1>
                                     <p className="text-xl text-white/60 font-light">
@@ -224,7 +258,11 @@ export default function ChatArea() {
                                                         <ImageMessage imageUrl={imageUrl} onDownload={handleDownload} />
                                                     )}
                                                     {textContent && (
-                                                        <p className="whitespace-pre-wrap leading-relaxed">{textContent}</p>
+                                                        msg.role === 'ai' ? (
+                                                            <BlurTypewriter content={textContent} className="whitespace-pre-wrap leading-relaxed" />
+                                                        ) : (
+                                                            <p className="whitespace-pre-wrap leading-relaxed">{textContent}</p>
+                                                        )
                                                     )}
                                                 </>
                                             );
@@ -281,6 +319,32 @@ export default function ChatArea() {
             {/* Input Area */}
             <div className="p-6 max-w-4xl w-full mx-auto z-20">
                 <div className="relative bg-[#1e1e1e]/80 backdrop-blur-xl rounded-3xl border border-white/10 shadow-2xl shadow-purple-900/20">
+                    {/* Image Preview */}
+                    <AnimatePresence>
+                        {selectedImage && (
+                            <motion.div
+                                initial={{ opacity: 0, height: 0, padding: 0 }}
+                                animate={{ opacity: 1, height: 'auto', padding: '16px' }}
+                                exit={{ opacity: 0, height: 0, padding: 0 }}
+                                className="px-4 pt-4"
+                            >
+                                <div className="relative inline-block">
+                                    <img
+                                        src={selectedImage}
+                                        alt="Preview"
+                                        className="h-20 w-auto rounded-xl border border-white/20"
+                                    />
+                                    <button
+                                        onClick={handleRemoveImage}
+                                        className="absolute -top-2 -right-2 p-1 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors shadow-lg"
+                                    >
+                                        <Sparkles size={12} className="rotate-45" />
+                                    </button>
+                                </div>
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
+
                     <textarea
                         value={inputPrompt}
                         onChange={(e) => setInputPrompt(e.target.value)}
@@ -293,18 +357,26 @@ export default function ChatArea() {
 
                     <div className="flex items-center justify-between px-4 pb-3">
                         <div className="flex items-center gap-2">
-                            <button disabled={!user} className="p-2 text-white/50 hover:text-white hover:bg-white/10 rounded-full transition-colors disabled:cursor-not-allowed disabled:opacity-30">
+                            <button
+                                onClick={() => fileInputRef.current?.click()}
+                                disabled={!user}
+                                className="p-2 text-white/50 hover:text-white hover:bg-white/10 rounded-full transition-colors disabled:cursor-not-allowed disabled:opacity-30"
+                            >
                                 <Paperclip size={20} />
                             </button>
-                            <button disabled={!user} className="p-2 text-white/50 hover:text-white hover:bg-white/10 rounded-full transition-colors disabled:cursor-not-allowed disabled:opacity-30">
-                                <ImageIcon size={20} />
-                            </button>
+                            <input
+                                ref={fileInputRef}
+                                type="file"
+                                accept="image/png, image/jpeg, image/jpg"
+                                onChange={handleFileSelect}
+                                className="hidden"
+                            />
                         </div>
 
                         <button
                             onClick={handleSend}
-                            disabled={!user || !inputPrompt.trim() || isLoading}
-                            className={`p-3 rounded-full transition-all duration-300 ${user && inputPrompt.trim() && !isLoading ? 'bg-white text-black hover:bg-gray-200' : 'bg-white/10 text-white/30 cursor-not-allowed'
+                            disabled={!user || (!inputPrompt.trim() && !selectedImage) || isLoading}
+                            className={`p-3 rounded-full transition-all duration-300 ${user && (inputPrompt.trim() || selectedImage) && !isLoading ? 'bg-white text-black hover:bg-gray-200' : 'bg-white/10 text-white/30 cursor-not-allowed'
                                 }`}
                         >
                             <Send size={20} />

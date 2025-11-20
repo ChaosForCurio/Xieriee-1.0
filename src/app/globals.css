@@ -50,5 +50,5 @@ body {
       rgb(var(--background-end-rgb))
     )
     rgb(var(--background-start-rgb));
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: "Söhne", "Söhne Breit", "Söhne Mono", sans-serif;
 }
