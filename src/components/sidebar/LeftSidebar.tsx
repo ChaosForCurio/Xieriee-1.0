@@ -7,7 +7,7 @@ import Toggle3D from '../ui/Toggle3D';
 import { useUser, UserButton } from "@stackframe/stack";
 
 export default function LeftSidebar() {
-    const { chatHistory, clearHistory, setInputPrompt, toggleLeftSidebar, userAvatar, setUserAvatar, savedChats, startNewChat, loadChat, deleteChat } = useApp();
+    const { chatHistory, clearHistory, setInputPrompt, toggleLeftSidebar, userAvatar, setUserAvatar, savedChats, startNewChat, loadChat, deleteChat, isLeftSidebarOpen } = useApp();
     const user = useUser();
 
     // Mock history removed as per user request
@@ -128,7 +128,10 @@ export default function LeftSidebar() {
 
                 {user && (
                     <button
-                        onClick={() => user.signOut()}
+                        onClick={() => {
+                            if (isLeftSidebarOpen) toggleLeftSidebar();
+                            user.signOut();
+                        }}
                         className="w-full flex items-center gap-3 px-3 py-2 mt-2 text-gray-400 hover:text-white hover:bg-white/5 rounded-lg transition-colors text-sm"
                     >
                         <LogOut size={16} />

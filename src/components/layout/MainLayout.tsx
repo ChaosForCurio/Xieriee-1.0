@@ -10,14 +10,18 @@ interface MainLayoutProps {
     children: React.ReactNode;
 }
 
+import { usePathname } from 'next/navigation';
+
 export default function MainLayout({ children }: MainLayoutProps) {
     const { isLeftSidebarOpen, isRightSidebarOpen, toggleLeftSidebar, toggleRightSidebar } = useApp();
+    const pathname = usePathname();
+    const isSignInPage = pathname?.includes('/sign-in');
 
     return (
         <div className="relative flex h-screen w-full bg-[#0a0a0a] text-white overflow-hidden font-sans selection:bg-purple-500/30">
             {/* Left Sidebar - User Info & History */}
             <AnimatePresence mode="wait">
-                {isLeftSidebarOpen && (
+                {isLeftSidebarOpen && !isSignInPage && (
                     <motion.aside
                         initial={{ x: -280, opacity: 0 }}
                         animate={{ x: 0, opacity: 1 }}
@@ -39,7 +43,7 @@ export default function MainLayout({ children }: MainLayoutProps) {
 
             {/* Right Sidebar - Social/Images */}
             <AnimatePresence mode="wait">
-                {isRightSidebarOpen && (
+                {isRightSidebarOpen && !isSignInPage && (
                     <motion.aside
                         initial={{ x: 320, opacity: 0 }}
                         animate={{ x: 0, opacity: 1 }}
@@ -54,7 +58,7 @@ export default function MainLayout({ children }: MainLayoutProps) {
 
             {/* Backdrop for mobile/tablet/overlay mode */}
             <AnimatePresence>
-                {(isLeftSidebarOpen || isRightSidebarOpen) && (
+                {(isLeftSidebarOpen || isRightSidebarOpen) && !isSignInPage && (
                     <motion.div
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
