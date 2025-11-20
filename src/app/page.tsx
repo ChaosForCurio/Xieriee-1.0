@@ -3,6 +3,8 @@ import ChatArea from "@/components/chat/ChatArea";
 import { stackServerApp } from "../stack";
 import { redirect } from "next/navigation";
 
+export const dynamic = 'force-dynamic';
+
 export default async function Home() {
   let user;
   try {
