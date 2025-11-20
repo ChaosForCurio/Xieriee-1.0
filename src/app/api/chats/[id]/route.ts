@@ -4,7 +4,7 @@ import { chats, messages } from '@/db/schema';
 import { eq, and, asc } from 'drizzle-orm';
 import { stackServerApp } from '@/stack';
 
-export async function DELETE(req: Request, { params }: { params: { id: string } }) {
+export async function DELETE(req: Request, { params }: { params: Promise<{ id: string }> }) {
     try {
         const user = await stackServerApp.getUser();
         const userId = user?.id;
@@ -13,7 +13,7 @@ export async function DELETE(req: Request, { params }: { params: { id: string } 
             return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
         }
 
-        const { id } = params;
+        const { id } = await params;
 
         // Verify ownership
         // @ts-ignore
@@ -31,7 +31,7 @@ export async function DELETE(req: Request, { params }: { params: { id: string } 
     }
 }
 
-export async function GET(req: Request, { params }: { params: { id: string } }) {
+export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
     try {
         const user = await stackServerApp.getUser();
         const userId = user?.id;
@@ -40,7 +40,7 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
             return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
         }
 
-        const { id } = params;
+        const { id } = await params;
 
         // Verify ownership first
         // @ts-ignore
