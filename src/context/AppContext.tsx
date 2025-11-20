@@ -42,8 +42,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     const [inputPrompt, setInputPrompt] = useState('');
     const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
     const [savedChats, setSavedChats] = useState<SavedChat[]>([]);
-    const [isLeftSidebarOpen, setIsLeftSidebarOpen] = useState(true);
-    const [isRightSidebarOpen, setIsRightSidebarOpen] = useState(true);
+    const [isLeftSidebarOpen, setIsLeftSidebarOpen] = useState(false);
+    const [isRightSidebarOpen, setIsRightSidebarOpen] = useState(false);
     const [userAvatar, setUserAvatar] = useState('https://i.pravatar.cc/150?img=68');
     const [isGeneratingImage, setIsGeneratingImage] = useState(false);
     const messageIdCounter = useRef(0);
@@ -53,8 +53,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
         const storedLeft = localStorage.getItem('isLeftSidebarOpen');
         const storedRight = localStorage.getItem('isRightSidebarOpen');
 
-        if (storedLeft !== null) setIsLeftSidebarOpen(storedLeft === 'true');
-        if (storedRight !== null) setIsRightSidebarOpen(storedRight === 'true');
         if (storedLeft !== null) setIsLeftSidebarOpen(storedLeft === 'true');
         if (storedRight !== null) setIsRightSidebarOpen(storedRight === 'true');
     }, []);

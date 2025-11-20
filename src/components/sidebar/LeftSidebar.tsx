@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { MessageSquare, Plus, Settings, MoreHorizontal, Trash2 } from 'lucide-react';
+import { MessageSquare, Plus, Settings, MoreHorizontal, Trash2, LogOut } from 'lucide-react';
 import { useApp } from '@/context/AppContext';
 import Toggle3D from '../ui/Toggle3D';
 import { useUser, UserButton } from "@stackframe/stack";
@@ -125,6 +125,16 @@ export default function LeftSidebar() {
                     <Trash2 size={16} />
                     <span>Clear Conversation</span>
                 </button>
+
+                {user && (
+                    <button
+                        onClick={() => user.signOut()}
+                        className="w-full flex items-center gap-3 px-3 py-2 mt-2 text-gray-400 hover:text-white hover:bg-white/5 rounded-lg transition-colors text-sm"
+                    >
+                        <LogOut size={16} />
+                        <span>Sign Out</span>
+                    </button>
+                )}
             </div>
         </div>
     );
