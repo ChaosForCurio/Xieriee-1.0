@@ -16,7 +16,7 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
         const { id } = await params;
 
         // Verify ownership
-        // @ts-ignore
+
         const chat = await db.select().from(chats).where(and(eq(chats.id, id), eq(chats.userId, userId))).limit(1);
 
         if (chat.length === 0) {
@@ -43,7 +43,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
         const { id } = await params;
 
         // Verify ownership first
-        // @ts-ignore
+
         const chat = await db.select().from(chats).where(and(eq(chats.id, id), eq(chats.userId, userId))).limit(1);
 
         if (chat.length === 0) {

@@ -1,4 +1,5 @@
 'use client';
+/* eslint-disable @next/next/no-img-element */
 
 import React from 'react';
 import { Heart, Share2, MoreVertical, Sparkles, ArrowUpRight } from 'lucide-react';
@@ -16,7 +17,15 @@ export default function RightSidebar() {
                     Community Feed
                 </h2>
                 <div className="hover:bg-white/10 rounded-lg transition-colors">
-                    <Toggle3D type="panel" isOpen={true} onClick={toggleRightSidebar} />
+                    <div className="hidden lg:block">
+                        <Toggle3D type="panel" isOpen={true} onClick={toggleRightSidebar} />
+                    </div>
+                    <button
+                        onClick={toggleRightSidebar}
+                        className="lg:hidden w-12 h-12 flex items-center justify-center text-white/80 hover:text-white transition-colors text-xl"
+                    >
+                        &gt;
+                    </button>
                 </div>
             </div>
 
@@ -43,7 +52,7 @@ export default function RightSidebar() {
                         {/* Overlay Content */}
                         <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent flex flex-col justify-end p-3">
                             <p className="text-xs text-white/90 line-clamp-2 mb-2 font-medium">
-                                "{item.prompt}"
+                                &quot;{item.prompt}&quot;
                             </p>
 
                             <div className="flex items-center justify-between text-white/70 mb-2">

@@ -38,7 +38,7 @@ interface AppContextType {
     userAvatar: string;
     setUserAvatar: (avatar: string) => void;
     isGeneratingImage: boolean;
-    generateImage: (prompt: string, model?: string) => Promise<string | null>;
+    generateImage: (prompt: string, model?: string, image?: string) => Promise<string | null>;
     savedChats: SavedChat[];
     startNewChat: () => void;
     loadChat: (id: string) => void;
@@ -73,13 +73,30 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     const messageIdCounter = useRef(0);
 
-    // Load sidebar states from localStorage on mount
+    // Load sidebar states and chat history from localStorage on mount
     useEffect(() => {
         const storedLeft = localStorage.getItem('isLeftSidebarOpen');
         const storedRight = localStorage.getItem('isRightSidebarOpen');
+        const storedChat = localStorage.getItem('chatHistory');
 
         if (storedLeft !== null) setIsLeftSidebarOpen(storedLeft === 'true');
         if (storedRight !== null) setIsRightSidebarOpen(storedRight === 'true');
+
+        // Load persisted chat history with images
+        if (storedChat) {
+            try {
+                const parsed = JSON.parse(storedChat);
+                // Convert timestamp strings back to Date objects
+                const messagesWithDates = parsed.map((msg: ChatMessage & { timestamp: string }) => ({
+                    ...msg,
+                    timestamp: new Date(msg.timestamp)
+                }));
+                setChatHistory(messagesWithDates);
+                console.log('[LocalStorage] Loaded chat history with', messagesWithDates.length, 'messages');
+            } catch (e) {
+                console.error('[LocalStorage] Failed to parse chat history:', e);
+            }
+        }
     }, []);
 
     // Load saved chats from API
@@ -89,7 +106,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
             const res = await fetch('/api/chats');
             const data = await res.json();
             if (data.success) {
-                const mappedChats = data.chats.map((c: any) => ({
+                const mappedChats = data.chats.map((c: { id: string; title: string; createdAt: string }) => ({
                     id: c.id,
                     title: c.title,
                     date: new Date(c.createdAt).toLocaleDateString(),
@@ -108,12 +125,59 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
     // Save sidebar states to localStorage when they change
     useEffect(() => {
-        localStorage.setItem('isLeftSidebarOpen', String(isLeftSidebarOpen));
+        try {
+            localStorage.setItem('isLeftSidebarOpen', String(isLeftSidebarOpen));
+        } catch (e) {
+            console.warn('[LocalStorage] Failed to save left sidebar state:', e);
+        }
     }, [isLeftSidebarOpen]);
 
     useEffect(() => {
-        localStorage.setItem('isRightSidebarOpen', String(isRightSidebarOpen));
+        try {
+            localStorage.setItem('isRightSidebarOpen', String(isRightSidebarOpen));
+        } catch (e) {
+            console.warn('[LocalStorage] Failed to save right sidebar state:', e);
+        }
     }, [isRightSidebarOpen]);
+
+    // Save chat history to localStorage whenever it changes
+    useEffect(() => {
+        if (chatHistory.length > 0) {
+            try {
+                localStorage.setItem('chatHistory', JSON.stringify(chatHistory));
+                console.log('[LocalStorage] Saved', chatHistory.length, 'messages');
+            } catch (e: unknown) {
+                // Use console.warn to avoid triggering Next.js error overlay in dev mode
+                console.warn('[LocalStorage] Failed to save chat history:', e);
+
+                if (e.name === 'QuotaExceededError' || e.code === 22 || e.code === 1014) {
+                    console.warn('[LocalStorage] Quota exceeded! Trying to save without images...');
+                    // Fallback: Save messages but strip out base64 images to save space
+                    const textOnlyHistory = chatHistory.map(msg => ({
+                        ...msg,
+                        content: msg.content.replace(/!\[.*?\]\(data:image\/.*?;base64,.*?\)/g, '[Image too large to save locally]')
+                    }));
+                    try {
+                        localStorage.setItem('chatHistory', JSON.stringify(textOnlyHistory));
+                        console.log('[LocalStorage] Saved text-only history due to quota limits.');
+                    } catch (retryError) {
+                        console.warn('[LocalStorage] Failed to save even text-only history:', retryError);
+                        // Ultimate fallback: Try saving just the last 20 text-only messages
+                        try {
+                            const truncatedHistory = textOnlyHistory.slice(-20);
+                            localStorage.setItem('chatHistory', JSON.stringify(truncatedHistory));
+                            console.log('[LocalStorage] Saved truncated text-only history.');
+                        } catch (finalError) {
+                            console.warn('[LocalStorage] Could not save any history.', finalError);
+                        }
+                    }
+                }
+            }
+        } else {
+            // Clear localStorage when chat is empty
+            localStorage.removeItem('chatHistory');
+        }
+    }, [chatHistory]);
 
     const addMessage = (role: 'user' | 'ai', content: string) => {
         messageIdCounter.current += 1;
@@ -165,7 +229,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
             const res = await fetch(`/api/chats/${id}`);
             const data = await res.json();
             if (data.success) {
-                const messages = data.messages.map((m: any) => ({
+                const messages = data.messages.map((m: { id: string; role: 'user' | 'ai'; content: string; createdAt: string }) => ({
                     id: String(m.id),
                     role: m.role,
                     content: m.content,
@@ -188,26 +252,52 @@ export function AppProvider({ children }: { children: ReactNode }) {
         }
     };
 
-    const clearHistory = () => {
+    const clearHistory = async () => {
         setChatHistory([]);
+        localStorage.removeItem('chatHistory');
     };
 
-    const generateImage = async (prompt: string, model: string = 'flux'): Promise<string | null> => {
+    const generateImage = async (prompt: string, model: string = 'flux', image?: string): Promise<string | null> => {
         setIsGeneratingImage(true);
         try {
             const res = await fetch('/api/generate-image', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ prompt, model }),
+                body: JSON.stringify({ prompt, model, image }),
             });
 
-            const data = await res.json();
+            console.log('[Generate Image] Response status:', res.status);
+            const text = await res.text();
+            console.log('[Generate Image] Raw response:', text.slice(0, 200)); // Log first 200 chars
+
+            let data;
+            try {
+                data = JSON.parse(text);
+            } catch (e) {
+                console.error('[Generate Image] Failed to parse JSON:', e);
+                throw new Error(`Server returned ${res.status} ${res.statusText}. Check console for raw response.`);
+            }
 
             if (data.success && data.data?.image) {
-                return data.data.image.url;
+                // Convert the URL to base64 to store locally
+                try {
+                    const imageRes = await fetch(data.data.image.url);
+                    const blob = await imageRes.blob();
+                    return await new Promise((resolve) => {
+                        const reader = new FileReader();
+                        reader.onloadend = () => resolve(reader.result as string);
+                        reader.readAsDataURL(blob);
+                    });
+                } catch (e) {
+                    console.error("Failed to convert generated image to base64:", e);
+                    // Fallback to URL if conversion fails (though it might not persist well if URL expires)
+                    return data.data.image.url;
+                }
             } else {
-                console.error('Image generation failed:', data.error);
-                return null;
+                console.error('Image generation failed:', data.error, data.details);
+                // Throw error with details if available
+                const errorMessage = data.details ? `${data.error}: ${data.details}` : (data.error || 'Image generation failed');
+                throw new Error(errorMessage);
             }
         } catch (error) {
             console.error('Image generation error:', error);

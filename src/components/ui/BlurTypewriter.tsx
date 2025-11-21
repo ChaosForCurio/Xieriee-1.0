@@ -46,8 +46,9 @@ export const BlurTypewriter = ({ content, className = "", delay = 0 }: BlurTypew
             className={className}
         >
             {words.map((word, index) => (
-                <motion.span key={index} variants={child} className="inline-block mr-1">
+                <motion.span key={index} variants={child} className="inline-block">
                     {word}
+                    {index < words.length - 1 && "\u00A0"}
                 </motion.span>
             ))}
         </motion.div>

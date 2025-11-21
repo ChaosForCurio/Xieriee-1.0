@@ -1,16 +1,20 @@
+
 'use client';
+/* eslint-disable @next/next/no-img-element */
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Send, Paperclip, Mic, Sparkles, User, Download } from 'lucide-react';
+import { Send, Paperclip, Sparkles, Download } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useApp } from '@/context/AppContext';
+import { compressImage } from '@/lib/imageUtils';
 import GeminiLogo3D from '../ui/GeminiLogo3D';
 import Toggle3D from '../ui/Toggle3D';
 import ImageGenerationSkeleton from '../ui/ImageGenerationSkeleton';
-import { BlurTypewriter } from '../ui/BlurTypewriter';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { useUser } from "@stackframe/stack";
 
-const ImageMessage = ({ imageUrl, onDownload }: { imageUrl: string, onDownload: (url: string) => void }) => {
+const ImageMessage = ({ imageUrl, onDownload, showDownload = true }: { imageUrl: string, onDownload: (url: string) => void, showDownload?: boolean }) => {
     const [isLoaded, setIsLoaded] = useState(false);
 
     return (
@@ -22,7 +26,7 @@ const ImageMessage = ({ imageUrl, onDownload }: { imageUrl: string, onDownload: 
                 loading="lazy"
                 onLoad={() => setIsLoaded(true)}
             />
-            {isLoaded && (
+            {isLoaded && showDownload && (
                 <button
                     onClick={() => onDownload(imageUrl)}
                     className="absolute bottom-2 right-2 p-2 bg-black/60 hover:bg-black/80 text-white rounded-full backdrop-blur-sm transition-all border border-white/20 shadow-lg"
@@ -36,7 +40,7 @@ const ImageMessage = ({ imageUrl, onDownload }: { imageUrl: string, onDownload: 
 };
 
 export default function ChatArea() {
-    const { inputPrompt, setInputPrompt, chatHistory, addMessage, toggleLeftSidebar, toggleRightSidebar, isLeftSidebarOpen, isRightSidebarOpen, generateImage, isGeneratingImage, userAvatar } = useApp();
+    const { inputPrompt, setInputPrompt, chatHistory, addMessage, toggleLeftSidebar, toggleRightSidebar, isLeftSidebarOpen, isRightSidebarOpen, generateImage, isGeneratingImage } = useApp();
     const user = useUser();
     const [isLoading, setIsLoading] = useState(false);
     const [selectedImage, setSelectedImage] = useState<string | null>(null);
@@ -48,8 +52,19 @@ export default function ChatArea() {
         if (file) {
             if (file.type === 'image/png' || file.type === 'image/jpeg' || file.type === 'image/jpg') {
                 const reader = new FileReader();
-                reader.onloadend = () => {
-                    setSelectedImage(reader.result as string);
+                reader.onloadend = async () => {
+                    try {
+                        const base64 = reader.result as string;
+                        // Compress image before setting state
+                        // Limit to 1600px width and 0.7 quality to avoid payload issues
+                        const compressed = await compressImage(base64, 1600, 0.7);
+                        setSelectedImage(compressed);
+                    } catch (error) {
+                        console.error("Image compression failed:", error);
+                        // Fallback to original if compression fails, but warn
+                        console.warn("Using original image due to compression failure. Upload might fail if too large.");
+                        setSelectedImage(reader.result as string);
+                    }
                 };
                 reader.readAsDataURL(file);
             } else {
@@ -75,10 +90,14 @@ export default function ChatArea() {
         if ((!inputPrompt.trim() && !selectedImage) || isLoading) return;
 
         const prompt = inputPrompt.trim();
-        const imageToSend = selectedImage;
+
 
         setInputPrompt(''); // Clear input immediately
         setSelectedImage(null); // Clear image immediately
+
+        // Use the compressed base64 image directly (no Cloudinary upload)
+        // It will be persisted in localStorage automatically
+        const finalImageUrl = selectedImage;
 
         // Check if it's an image generation command
         if (prompt.toLowerCase().startsWith('@image ')) {
@@ -89,12 +108,18 @@ export default function ChatArea() {
                 return;
             }
 
-            addMessage('user', prompt);
+            // Show user image in chat history (using Cloudinary URL)
+            if (finalImageUrl) {
+                addMessage('user', `![User Image](${finalImageUrl}) \n${prompt} `);
+            } else {
+                addMessage('user', prompt);
+            }
             // Add loading message with animation
             // Loading state is handled by isGeneratingImage and the skeleton component
 
             try {
-                const imageUrl = await generateImage(imageDescription);
+                // Pass the Cloudinary URL (finalImageUrl) to generateImage
+                const imageUrl = await generateImage(imageDescription, 'flux', finalImageUrl || undefined);
                 if (imageUrl) {
                     addMessage('ai', `![Generated Image](${imageUrl})`);
                 } else {
@@ -102,18 +127,16 @@ export default function ChatArea() {
                 }
             } catch (error) {
                 console.error('Image generation error:', error);
-                addMessage('ai', `❌ Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+                addMessage('ai', `❌ Error: ${error instanceof Error ? error.message : 'Unknown error'} `);
             }
             return;
         }
 
         // Normal chat flow (with optional image)
         let userContent = prompt;
-        if (imageToSend) {
-            // If there's an image, we can display it in the chat history using markdown or a custom format
-            // For now, let's append a marker or just rely on the AI response context
-            // But to show it in the UI immediately as a user message:
-            userContent = imageToSend ? `![User Image](${imageToSend})\n${prompt}` : prompt;
+        if (finalImageUrl) {
+            // Use the Cloudinary URL (or base64 fallback) in the message
+            userContent = finalImageUrl ? `![User Image](${finalImageUrl}) \n${prompt} ` : prompt;
         }
 
         addMessage('user', userContent);
@@ -123,17 +146,36 @@ export default function ChatArea() {
             const res = await fetch('/api/chat', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ prompt, image: imageToSend }),
+                body: JSON.stringify({ prompt, image: finalImageUrl, messages: chatHistory }),
             });
 
             const data = await res.json();
 
             if (data.response) {
                 addMessage('ai', data.response);
-            } else {
-                // Fallback for empty Gemini response
+            } else if (!data.action) {
+                // Fallback for empty Gemini response (only if no action)
                 addMessage('ai', "Sorry, I couldn't get a response from Gemini. Please try again.");
             }
+
+            // Handle Image Generation Action from AI
+            if (data.action === 'generate_image' && data.freepik_prompt) {
+                try {
+                    // Pass the Cloudinary URL (finalImageUrl) to generateImage if available, 
+                    // effectively doing Image-to-Image generation if the user provided an image.
+                    const imageUrl = await generateImage(data.freepik_prompt, 'flux', finalImageUrl || undefined);
+
+                    if (imageUrl) {
+                        addMessage('ai', `![Generated Image](${imageUrl})`);
+                    } else {
+                        addMessage('ai', '❌ Image generation failed. Please check the console for details.');
+                    }
+                } catch (error) {
+                    console.error('Auto-image generation error:', error);
+                    addMessage('ai', `❌ Error generating image: ${error instanceof Error ? error.message : 'Unknown error'} `);
+                }
+            }
+
         } catch (error) {
             console.error("Chat error:", error);
             addMessage('ai', "Network error, please try again.");
@@ -156,7 +198,7 @@ export default function ChatArea() {
             const blobUrl = window.URL.createObjectURL(blob);
             const link = document.createElement('a');
             link.href = blobUrl;
-            link.download = `generated-image-${Date.now()}.png`;
+            link.download = `generated - image - ${Date.now()}.png`;
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
@@ -174,13 +216,29 @@ export default function ChatArea() {
             {/* Header with Toggles */}
             <div className="h-16 flex items-center justify-between px-4 border-b border-white/5 bg-black/20 backdrop-blur-md z-30 shrink-0 w-full">
                 <div className="hover:bg-white/5 rounded-lg transition-colors">
-                    <Toggle3D type="panel" side="left" isOpen={isLeftSidebarOpen} onClick={toggleLeftSidebar} />
+                    <div className="hidden lg:block">
+                        <Toggle3D type="panel" side="left" isOpen={isLeftSidebarOpen} onClick={toggleLeftSidebar} />
+                    </div>
+                    <button
+                        onClick={toggleLeftSidebar}
+                        className="lg:hidden w-10 h-10 flex items-center justify-center text-white/80 text-2xl font-light"
+                    >
+                        {isLeftSidebarOpen ? '<' : '>'}
+                    </button>
                 </div>
 
-                <span className="font-medium text-white/80 tracking-wide">From Heaven To Horizon</span>
+                <span className="font-medium text-white/80 tracking-wide">Xieriee AI</span>
 
                 <div className="hover:bg-white/5 rounded-lg transition-colors">
-                    <Toggle3D type="panel" side="right" isOpen={isRightSidebarOpen} onClick={toggleRightSidebar} />
+                    <div className="hidden lg:block">
+                        <Toggle3D type="panel" side="right" isOpen={isRightSidebarOpen} onClick={toggleRightSidebar} />
+                    </div>
+                    <button
+                        onClick={toggleRightSidebar}
+                        className="lg:hidden w-10 h-10 flex items-center justify-center text-white/80 text-2xl font-light"
+                    >
+                        {isRightSidebarOpen ? '>' : '<'}
+                    </button>
                 </div>
             </div>
 
@@ -200,7 +258,7 @@ export default function ChatArea() {
                                         Welcome to Xieriee
                                     </h1>
                                     <p className="text-xl text-white/60 font-light">
-                                        Please sign in to start chatting with AI
+                                        Sign in to unlock your creative potential
                                     </p>
                                     <button
                                         onClick={() => window.location.href = '/handler/sign-in'}
@@ -215,7 +273,7 @@ export default function ChatArea() {
                                         Hello, {user.displayName || 'Human'}
                                     </h1>
                                     <p className="text-xl text-white/60 font-light">
-                                        How can I help you create today?
+                                        What would you like to create today?
                                     </p>
                                 </>
                             )}
@@ -238,9 +296,9 @@ export default function ChatArea() {
                                     )}
 
                                     <div className={`max-w-[80%] md:max-w-[70%] p-4 rounded-2xl ${msg.role === 'user'
-                                        ? 'bg-white/10 text-white rounded-tr-sm'
+                                        ? 'bg-transparent text-white rounded-tr-sm'
                                         : 'bg-transparent text-gray-100 rounded-tl-sm'
-                                        }`}>
+                                        } `}>
                                         {(() => {
                                             // Check for markdown image syntax
                                             const imageMatch = msg.content.match(/!\[.*?\]\((.*?)\)/);
@@ -255,11 +313,50 @@ export default function ChatArea() {
                                             return (
                                                 <>
                                                     {imageUrl && (
-                                                        <ImageMessage imageUrl={imageUrl} onDownload={handleDownload} />
+                                                        <ImageMessage
+                                                            imageUrl={imageUrl}
+                                                            onDownload={handleDownload}
+                                                            showDownload={msg.role === 'ai'}
+                                                        />
                                                     )}
                                                     {textContent && (
                                                         msg.role === 'ai' ? (
-                                                            <BlurTypewriter content={textContent} className="whitespace-pre-wrap leading-relaxed" />
+                                                            <div className="prose prose-invert max-w-none prose-p:leading-relaxed prose-pre:p-0 prose-pre:bg-transparent">
+                                                                <ReactMarkdown
+                                                                    remarkPlugins={[remarkGfm]}
+                                                                    components={{
+                                                                        p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
+                                                                        code: ({ inline, className, children, ...props }: React.ComponentPropsWithoutRef<'code'> & { inline?: boolean }) => {
+                                                                            const match = /language-(\w+)/.exec(className || '');
+                                                                            return !inline && match ? (
+                                                                                <div className="relative bg-black/50 rounded-lg p-4 my-4 overflow-x-auto border border-white/10">
+                                                                                    <code className={className} {...props}>
+                                                                                        {children}
+                                                                                    </code>
+                                                                                </div>
+                                                                            ) : (
+                                                                                <code className="bg-white/10 px-1.5 py-0.5 rounded text-sm font-mono text-pink-300" {...props}>
+                                                                                    {children}
+                                                                                </code>
+                                                                            );
+                                                                        },
+                                                                        ul: ({ children }) => <ul className="list-disc list-outside ml-4 mb-4 space-y-1">{children}</ul>,
+                                                                        ol: ({ children }) => <ol className="list-decimal list-outside ml-4 mb-4 space-y-1">{children}</ol>,
+                                                                        li: ({ children }) => <li className="pl-1">{children}</li>,
+                                                                        h1: ({ children }) => <h1 className="text-2xl font-bold mb-4 mt-6 first:mt-0">{children}</h1>,
+                                                                        h2: ({ children }) => <h2 className="text-xl font-bold mb-3 mt-5 first:mt-0">{children}</h2>,
+                                                                        h3: ({ children }) => <h3 className="text-lg font-bold mb-2 mt-4 first:mt-0">{children}</h3>,
+                                                                        table: ({ children }) => <div className="overflow-x-auto my-4 rounded-lg border border-white/10"><table className="min-w-full divide-y divide-white/10">{children}</table></div>,
+                                                                        thead: ({ children }) => <thead className="bg-white/5">{children}</thead>,
+                                                                        th: ({ children }) => <th className="px-4 py-3 text-left text-xs font-medium text-white/70 uppercase tracking-wider">{children}</th>,
+                                                                        td: ({ children }) => <td className="px-4 py-3 whitespace-nowrap text-sm text-white/80 border-t border-white/5">{children}</td>,
+                                                                        blockquote: ({ children }) => <blockquote className="border-l-4 border-purple-500/50 pl-4 italic my-4 text-white/60">{children}</blockquote>,
+                                                                        a: ({ href, children }) => <a href={href} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:text-blue-300 underline decoration-blue-400/30 hover:decoration-blue-300">{children}</a>,
+                                                                    }}
+                                                                >
+                                                                    {textContent}
+                                                                </ReactMarkdown>
+                                                            </div>
                                                         ) : (
                                                             <p className="whitespace-pre-wrap leading-relaxed">{textContent}</p>
                                                         )
@@ -270,11 +367,15 @@ export default function ChatArea() {
                                     </div>
 
                                     {msg.role === 'user' && (
-                                        <div className="w-10 h-10 rounded-full overflow-hidden shrink-0 mt-1 border border-white/10">
+                                        <div className="w-10 h-10 rounded-full overflow-hidden shrink-0 mt-1 border border-white/10 bg-gradient-to-br from-purple-500/20 to-blue-500/20">
                                             <img
-                                                src={user?.profileImageUrl || userAvatar}
+                                                src={user?.profileImageUrl || `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.displayName || 'User')}&background=random&color=fff`}
                                                 alt="User"
                                                 className="w-full h-full object-cover"
+                                                onError={(e) => {
+                                                    const target = e.target as HTMLImageElement;
+                                                    target.src = `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.displayName || 'User')}&background=random&color=fff`;
+                                                }}
                                             />
                                         </div>
                                     )}
@@ -349,7 +450,7 @@ export default function ChatArea() {
                         value={inputPrompt}
                         onChange={(e) => setInputPrompt(e.target.value)}
                         onKeyDown={handleKeyDown}
-                        placeholder={!user ? "Please sign in to start chatting..." : "Ask anything... (type @image to generate images)"}
+                        placeholder={!user ? "Please sign in to start chatting..." : "Ask anything... (type @image to generate/remix images)"}
                         disabled={!user}
                         className="w-full bg-transparent text-white placeholder-white/40 p-4 pl-6 pr-16 min-h-[60px] max-h-[200px] resize-none outline-none rounded-3xl custom-scrollbar disabled:cursor-not-allowed disabled:opacity-50"
                         rows={1}
@@ -377,7 +478,7 @@ export default function ChatArea() {
                             onClick={handleSend}
                             disabled={!user || (!inputPrompt.trim() && !selectedImage) || isLoading}
                             className={`p-3 rounded-full transition-all duration-300 ${user && (inputPrompt.trim() || selectedImage) && !isLoading ? 'bg-white text-black hover:bg-gray-200' : 'bg-white/10 text-white/30 cursor-not-allowed'
-                                }`}
+                                } `}
                         >
                             <Send size={20} />
                         </button>

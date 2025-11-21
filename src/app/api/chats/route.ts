@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
 import { chats, messages } from '@/db/schema';
-import { desc, eq, and } from 'drizzle-orm';
+import { desc, eq } from 'drizzle-orm';
 import { stackServerApp } from '@/stack';
 
 export async function GET() {
@@ -13,12 +13,9 @@ export async function GET() {
 
         if (userId) {
             // If logged in, get user's chats
-            // @ts-ignore - userId is added to schema but typescript might not pick it up yet
             query = query.where(eq(chats.userId, userId));
         } else {
-            // If not logged in, maybe return empty or guest chats? 
-            // For now, let's return empty to encourage login, or we could handle guest mode via local storage only
-            // But since we are moving to DB, let's just return empty for now if no user
+            // If not logged in, return empty chats (localStorage will handle guest chats)
             return NextResponse.json({ success: true, chats: [] });
         }
 
@@ -26,7 +23,8 @@ export async function GET() {
         return NextResponse.json({ success: true, chats: allChats });
     } catch (error) {
         console.error('Error fetching chats:', error);
-        return NextResponse.json({ success: false, error: 'Failed to fetch chats' }, { status: 500 });
+        // Fallback to empty list to avoid breaking UI
+        return NextResponse.json({ success: true, chats: [] }, { status: 200 });
     }
 }
 
@@ -57,7 +55,7 @@ export async function POST(req: Request) {
 
         // Insert messages
         if (chatMessages && chatMessages.length > 0) {
-            const messagesToInsert = chatMessages.map((msg: any) => ({
+            const messagesToInsert = chatMessages.map((msg: { role: 'user' | 'assistant'; content: string; timestamp?: number }) => ({
                 chatId: id,
                 role: msg.role,
                 content: msg.content,

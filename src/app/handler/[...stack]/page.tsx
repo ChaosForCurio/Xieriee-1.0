@@ -1,6 +1,6 @@
 import { StackHandler } from "@stackframe/stack";
 import { stackServerApp } from "../../../stack";
 
-export default function Handler(props: any) {
+export default function Handler(props: Record<string, unknown>) {
   return <StackHandler app={stackServerApp} {...props} />;
 }

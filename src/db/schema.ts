@@ -15,3 +15,12 @@ export const messages = pgTable('messages', {
     content: text('content').notNull(),
     createdAt: timestamp('created_at').defaultNow().notNull(),
 });
+
+export const memories = pgTable('memories', {
+    id: serial('id').primaryKey(),
+    userId: text('user_id').notNull(),
+    key: text('key').notNull(),
+    value: text('value').notNull(),
+    reason: text('reason'),
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+});

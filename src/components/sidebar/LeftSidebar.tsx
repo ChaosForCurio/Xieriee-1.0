@@ -1,4 +1,5 @@
 'use client';
+/* eslint-disable @next/next/no-img-element */
 
 import React from 'react';
 import { MessageSquare, Plus, Settings, MoreHorizontal, Trash2, LogOut } from 'lucide-react';
@@ -7,7 +8,7 @@ import Toggle3D from '../ui/Toggle3D';
 import { useUser, UserButton } from "@stackframe/stack";
 
 export default function LeftSidebar() {
-    const { chatHistory, clearHistory, setInputPrompt, toggleLeftSidebar, userAvatar, setUserAvatar, savedChats, startNewChat, loadChat, deleteChat, isLeftSidebarOpen, toggleUploadModal } = useApp();
+    const { chatHistory, clearHistory, toggleLeftSidebar, savedChats, startNewChat, loadChat, deleteChat, isLeftSidebarOpen, toggleUploadModal } = useApp();
     const user = useUser();
 
     // Mock history removed as per user request
@@ -32,7 +33,15 @@ export default function LeftSidebar() {
                     <span>New Chat</span>
                 </button>
                 <div className="bg-white/5 hover:bg-white/10 transition-colors rounded-xl border border-white/5">
-                    <Toggle3D type="panel" isOpen={true} onClick={toggleLeftSidebar} />
+                    <div className="hidden lg:block">
+                        <Toggle3D type="panel" isOpen={true} onClick={toggleLeftSidebar} />
+                    </div>
+                    <button
+                        onClick={toggleLeftSidebar}
+                        className="lg:hidden w-12 h-12 flex items-center justify-center text-white/80 hover:text-white transition-colors text-xl"
+                    >
+                        &lt;
+                    </button>
                 </div>
             </div>
 
@@ -152,6 +161,6 @@ export default function LeftSidebar() {
                     </button>
                 )}
             </div>
-        </div>
+        </div >
     );
 }
