@@ -62,7 +62,7 @@ export default function UploadModal() {
             user: user?.displayName || 'Anonymous',
             avatar: user?.profileImageUrl || 'https://i.pravatar.cc/150?img=68',
             prompt: prompt.trim(),
-            likes: '0',
+            likes: 0,
             image: selectedImage
         };
 

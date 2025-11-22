@@ -3,9 +3,9 @@
 /* eslint-disable @next/next/no-img-element */
 
 import React, { useState, useEffect, useRef } from 'react';
-import { Send, Paperclip, Sparkles, Download } from 'lucide-react';
+import { Send, Paperclip, Sparkles, Download, FileText } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { useApp } from '@/context/AppContext';
+import { useApp, ChatMessage } from '@/context/AppContext';
 import { compressImage } from '@/lib/imageUtils';
 import GeminiLogo3D from '../ui/GeminiLogo3D';
 import Toggle3D from '../ui/Toggle3D';
@@ -13,6 +13,7 @@ import ImageGenerationSkeleton from '../ui/ImageGenerationSkeleton';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { useUser } from "@stackframe/stack";
+import StreamingAIResponse from './StreamingAIResponse';
 
 const ImageMessage = ({ imageUrl, onDownload, showDownload = true }: { imageUrl: string, onDownload: (url: string) => void, showDownload?: boolean }) => {
     const [isLoaded, setIsLoaded] = useState(false);
@@ -39,6 +40,20 @@ const ImageMessage = ({ imageUrl, onDownload, showDownload = true }: { imageUrl:
     );
 };
 
+const PDFMessage = ({ pdfUrl }: { pdfUrl: string }) => {
+    return (
+        <div className="mb-3 mt-1 relative group inline-flex items-center gap-3 bg-white/5 p-3 rounded-xl border border-white/10 hover:bg-white/10 transition-colors cursor-pointer" onClick={() => window.open(pdfUrl, '_blank')}>
+            <div className="h-12 w-12 flex items-center justify-center bg-red-500/20 rounded-lg text-red-400">
+                <FileText size={24} />
+            </div>
+            <div className="flex flex-col">
+                <span className="text-sm font-medium text-white/90">PDF Document</span>
+                <span className="text-xs text-white/50">Click to view</span>
+            </div>
+        </div>
+    );
+};
+
 export default function ChatArea() {
     const { inputPrompt, setInputPrompt, chatHistory, addMessage, toggleLeftSidebar, toggleRightSidebar, isLeftSidebarOpen, isRightSidebarOpen, generateImage, isGeneratingImage } = useApp();
     const user = useUser();
@@ -50,25 +65,31 @@ export default function ChatArea() {
     const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (file) {
-            if (file.type === 'image/png' || file.type === 'image/jpeg' || file.type === 'image/jpg') {
+            if (file.type === 'image/png' || file.type === 'image/jpeg' || file.type === 'image/jpg' || file.type === 'application/pdf') {
                 const reader = new FileReader();
                 reader.onloadend = async () => {
                     try {
                         const base64 = reader.result as string;
-                        // Compress image before setting state
-                        // Limit to 1600px width and 0.7 quality to avoid payload issues
-                        const compressed = await compressImage(base64, 1600, 0.7);
-                        setSelectedImage(compressed);
+
+                        if (file.type === 'application/pdf') {
+                            // No compression for PDFs
+                            setSelectedImage(base64);
+                        } else {
+                            // Compress image before setting state
+                            // Limit to 1600px width and 0.7 quality to avoid payload issues
+                            const compressed = await compressImage(base64, 1600, 0.7);
+                            setSelectedImage(compressed);
+                        }
                     } catch (error) {
-                        console.error("Image compression failed:", error);
+                        console.error("File processing failed:", error);
                         // Fallback to original if compression fails, but warn
-                        console.warn("Using original image due to compression failure. Upload might fail if too large.");
+                        console.warn("Using original file due to processing failure.");
                         setSelectedImage(reader.result as string);
                     }
                 };
                 reader.readAsDataURL(file);
             } else {
-                alert('Please upload a PNG or JPG image.');
+                alert('Please upload a PNG, JPG, or PDF file.');
             }
         }
     };
@@ -76,6 +97,22 @@ export default function ChatArea() {
     const handleRemoveImage = () => {
         setSelectedImage(null);
         if (fileInputRef.current) fileInputRef.current.value = '';
+    };
+
+    // Helper to remove heavy base64 data from history before sending to API
+    const sanitizeHistory = (history: ChatMessage[]) => {
+        return history.map(msg => {
+            // Check if content contains base64 image or pdf
+            if (msg.content.includes('data:image') || msg.content.includes('data:application/pdf')) {
+                // Replace the base64 string with a placeholder
+                // Regex to match markdown image syntax with base64: ![...](data:...)
+                // or just the raw data string if it's somehow loose
+                let cleanContent = msg.content.replace(/\!\[.*?\]\(data:.*?\)/g, '[Image Attachment]');
+                cleanContent = cleanContent.replace(/\[PDF Attachment\]\(data:.*?\)/g, '[PDF Attachment]');
+                return { ...msg, content: cleanContent };
+            }
+            return msg;
+        });
     };
 
     const scrollToBottom = () => {
@@ -132,21 +169,28 @@ export default function ChatArea() {
             return;
         }
 
-        // Normal chat flow (with optional image)
+        // Normal chat flow (with optional image/pdf)
         let userContent = prompt;
         if (finalImageUrl) {
-            // Use the Cloudinary URL (or base64 fallback) in the message
-            userContent = finalImageUrl ? `![User Image](${finalImageUrl}) \n${prompt} ` : prompt;
+            if (finalImageUrl.startsWith('data:application/pdf')) {
+                userContent = `[PDF Attachment](${finalImageUrl}) \n${prompt} `;
+            } else {
+                // Use the Cloudinary URL (or base64 fallback) in the message
+                userContent = `![User Image](${finalImageUrl}) \n${prompt} `;
+            }
         }
 
         addMessage('user', userContent);
         setIsLoading(true);
 
         try {
+            // Sanitize history to remove large base64 strings
+            const sanitizedHistory = sanitizeHistory(chatHistory);
+
             const res = await fetch('/api/chat', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ prompt, image: finalImageUrl, messages: chatHistory }),
+                body: JSON.stringify({ prompt, image: finalImageUrl, messages: sanitizedHistory }),
             });
 
             const data = await res.json();
@@ -282,7 +326,7 @@ export default function ChatArea() {
                 ) : (
                     <div className="space-y-6 max-w-4xl mx-auto w-full pb-4">
                         <AnimatePresence>
-                            {chatHistory.map((msg) => (
+                            {chatHistory.map((msg, index) => (
                                 <motion.div
                                     key={msg.id}
                                     initial={{ opacity: 0, y: 10 }}
@@ -313,11 +357,18 @@ export default function ChatArea() {
                                             const imageMatch = msg.content.match(/!\[.*?\]\((.*?)\)/);
                                             const imageUrl = imageMatch ? imageMatch[1] : null;
 
+                                            // Check for PDF attachment syntax
+                                            const pdfMatch = msg.content.match(/\[PDF Attachment\]\((.*?)\)/);
+                                            const pdfUrl = pdfMatch ? pdfMatch[1] : null;
+
                                             // Remove the image markdown from the text to avoid double rendering
                                             // but keep the rest of the message
-                                            const textContent = imageUrl
-                                                ? msg.content.replace(/!\[.*?\]\(.*?\)/, '').trim()
-                                                : msg.content;
+                                            // Remove the image/pdf markdown from the text to avoid double rendering
+                                            // but keep the rest of the message
+                                            let textContent = msg.content;
+                                            if (imageUrl) textContent = textContent.replace(/!\[.*?\]\(.*?\)/, '');
+                                            if (pdfUrl) textContent = textContent.replace(/\[PDF Attachment\]\(.*?\)/, '');
+                                            textContent = textContent.trim();
 
                                             return (
                                                 <>
@@ -328,44 +379,19 @@ export default function ChatArea() {
                                                             showDownload={msg.role === 'ai'}
                                                         />
                                                     )}
+                                                    {pdfUrl && (
+                                                        <PDFMessage pdfUrl={pdfUrl} />
+                                                    )}
                                                     {textContent && (
                                                         msg.role === 'ai' ? (
-                                                            <div className="prose prose-invert max-w-none prose-p:leading-relaxed prose-pre:p-0 prose-pre:bg-transparent">
-                                                                <ReactMarkdown
-                                                                    remarkPlugins={[remarkGfm]}
-                                                                    components={{
-                                                                        p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
-                                                                        code: ({ inline, className, children, ...props }: React.ComponentPropsWithoutRef<'code'> & { inline?: boolean }) => {
-                                                                            const match = /language-(\w+)/.exec(className || '');
-                                                                            return !inline && match ? (
-                                                                                <div className="relative bg-black/50 rounded-lg p-4 my-4 overflow-x-auto border border-white/10">
-                                                                                    <code className={className} {...props}>
-                                                                                        {children}
-                                                                                    </code>
-                                                                                </div>
-                                                                            ) : (
-                                                                                <code className="bg-white/10 px-1.5 py-0.5 rounded text-sm font-mono text-pink-300" {...props}>
-                                                                                    {children}
-                                                                                </code>
-                                                                            );
-                                                                        },
-                                                                        ul: ({ children }) => <ul className="list-disc list-outside ml-4 mb-4 space-y-1">{children}</ul>,
-                                                                        ol: ({ children }) => <ol className="list-decimal list-outside ml-4 mb-4 space-y-1">{children}</ol>,
-                                                                        li: ({ children }) => <li className="pl-1">{children}</li>,
-                                                                        h1: ({ children }) => <h1 className="text-2xl font-bold mb-4 mt-6 first:mt-0">{children}</h1>,
-                                                                        h2: ({ children }) => <h2 className="text-xl font-bold mb-3 mt-5 first:mt-0">{children}</h2>,
-                                                                        h3: ({ children }) => <h3 className="text-lg font-bold mb-2 mt-4 first:mt-0">{children}</h3>,
-                                                                        table: ({ children }) => <div className="overflow-x-auto my-4 rounded-lg border border-white/10"><table className="min-w-full divide-y divide-white/10">{children}</table></div>,
-                                                                        thead: ({ children }) => <thead className="bg-white/5">{children}</thead>,
-                                                                        th: ({ children }) => <th className="px-4 py-3 text-left text-xs font-medium text-white/70 uppercase tracking-wider">{children}</th>,
-                                                                        td: ({ children }) => <td className="px-4 py-3 whitespace-nowrap text-sm text-white/80 border-t border-white/5">{children}</td>,
-                                                                        blockquote: ({ children }) => <blockquote className="border-l-4 border-purple-500/50 pl-4 italic my-4 text-white/60">{children}</blockquote>,
-                                                                        a: ({ href, children }) => <a href={href} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:text-blue-300 underline decoration-blue-400/30 hover:decoration-blue-300">{children}</a>,
-                                                                    }}
-                                                                >
-                                                                    {textContent}
-                                                                </ReactMarkdown>
-                                                            </div>
+                                                            <StreamingAIResponse
+                                                                content={msg.content}
+                                                                isNew={index === chatHistory.length - 1 && !isLoading} // Only stream if it's the very last message and we are NOT currently loading (meaning it's done or being added)
+                                                                // Actually, if isLoading is true, we are waiting for response. 
+                                                                // When response arrives, isLoading becomes false, and the message is added.
+                                                                // So index === length - 1 is correct.
+                                                                onDownload={handleDownload}
+                                                            />
                                                         ) : (
                                                             <p className="whitespace-pre-wrap leading-relaxed">{textContent}</p>
                                                         )
@@ -448,11 +474,18 @@ export default function ChatArea() {
                                 className="px-4 pt-4"
                             >
                                 <div className="relative inline-block">
-                                    <img
-                                        src={selectedImage}
-                                        alt="Preview"
-                                        className="h-20 w-auto rounded-xl border border-white/20"
-                                    />
+                                    {selectedImage.startsWith('data:application/pdf') ? (
+                                        <div className="h-20 w-20 flex flex-col items-center justify-center bg-white/10 rounded-xl border border-white/20 text-white/70">
+                                            <FileText size={32} />
+                                            <span className="text-[10px] mt-1 font-medium">PDF</span>
+                                        </div>
+                                    ) : (
+                                        <img
+                                            src={selectedImage}
+                                            alt="Preview"
+                                            className="h-20 w-auto rounded-xl border border-white/20"
+                                        />
+                                    )}
                                     <button
                                         onClick={handleRemoveImage}
                                         className="absolute -top-2 -right-2 p-1 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors shadow-lg"
@@ -486,7 +519,7 @@ export default function ChatArea() {
                             <input
                                 ref={fileInputRef}
                                 type="file"
-                                accept="image/png, image/jpeg, image/jpg"
+                                accept="image/png, image/jpeg, image/jpg, application/pdf"
                                 onChange={handleFileSelect}
                                 className="hidden"
                             />

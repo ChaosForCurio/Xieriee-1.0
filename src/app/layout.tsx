@@ -14,6 +14,8 @@ export const metadata: Metadata = {
 import { StackProvider, StackTheme } from "@stackframe/stack";
 import { stackServerApp } from "../stack";
 
+import { Suspense } from "react";
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -24,9 +26,11 @@ export default function RootLayout({
       <body>
         <StackProvider app={stackServerApp}>
           <StackTheme>
-            <AppProvider>
-              <MainLayout>{children}</MainLayout>
-            </AppProvider>
+            <Suspense fallback={<div className="flex h-screen w-full items-center justify-center bg-[#0a0a0a] text-white">Loading...</div>}>
+              <AppProvider>
+                <MainLayout>{children}</MainLayout>
+              </AppProvider>
+            </Suspense>
           </StackTheme>
         </StackProvider>
       </body>

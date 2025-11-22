@@ -29,59 +29,67 @@ export default function RightSidebar() {
                 </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-4 space-y-6 custom-scrollbar">
-                {communityFeed.map((item) => (
-                    <div key={item.id} className="group relative rounded-xl overflow-hidden bg-white/5 border border-white/5 hover:border-white/10 transition-all">
-                        {/* User Info - Always Visible at Top */}
-                        <div className="absolute top-3 left-3 z-10 flex items-center gap-2 bg-black/60 backdrop-blur-md rounded-full px-3 py-1.5 border border-white/10">
-                            <img
-                                src={item.avatar}
-                                alt={item.user}
-                                className="w-6 h-6 rounded-full object-cover border-2 border-white/20"
-                            />
-                            <span className="text-xs font-medium text-white">{item.user}</span>
-                        </div>
-
-                        {/* Image */}
-                        <img
-                            src={item.image}
-                            alt={item.prompt}
-                            className="aspect-square w-full object-cover transition-opacity"
-                        />
-
-                        {/* Overlay Content */}
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent flex flex-col justify-end p-3">
-                            <p className="text-xs text-white/90 line-clamp-2 mb-2 font-medium">
-                                &quot;{item.prompt}&quot;
-                            </p>
-
-                            <div className="flex items-center justify-between text-white/70 mb-2">
-                                <div className="flex items-center gap-1 text-xs">
-                                    <Heart size={14} />
-                                    <span>{item.likes}</span>
+            <div className="flex-1 overflow-y-auto p-2 custom-scrollbar">
+                {communityFeed.length > 0 ? (
+                    <div className="grid grid-cols-1 gap-4">
+                        {communityFeed.map((item) => (
+                            <div key={item.id} className="group bg-white/5 rounded-lg overflow-hidden border border-white/5 hover:border-white/20 transition-all flex flex-col">
+                                {/* Image */}
+                                <div
+                                    className="aspect-square relative overflow-hidden cursor-pointer"
+                                    onClick={() => setInputPrompt(item.prompt)}
+                                >
+                                    <img
+                                        src={item.image}
+                                        alt={item.prompt}
+                                        className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                                    />
                                 </div>
-                                <button className="p-1 hover:bg-white/20 rounded-full transition-colors">
-                                    <Share2 size={14} />
-                                </button>
+
+                                {/* Content */}
+                                <div className="p-2 flex flex-col gap-2">
+                                    {/* Prompt - Always Visible */}
+                                    <p
+                                        className="text-[10px] text-white/90 line-clamp-2 leading-tight h-[2.4em]"
+                                        title={item.prompt}
+                                    >
+                                        {item.prompt}
+                                    </p>
+
+                                    {/* Footer */}
+                                    <div className="flex items-center justify-between gap-2">
+                                        <div className="flex items-center gap-1.5 min-w-0">
+                                            <img
+                                                src={item.avatar}
+                                                alt={item.user}
+                                                className="w-4 h-4 rounded-full object-cover border border-white/30 shrink-0"
+                                            />
+                                            <span className="text-[10px] font-medium text-white/60 truncate">{item.user}</span>
+                                        </div>
+
+                                        <button
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                setInputPrompt(item.prompt);
+                                            }}
+                                            className="px-2 py-0.5 bg-white/10 hover:bg-white/20 text-white text-[9px] font-medium rounded transition-colors shrink-0"
+                                        >
+                                            USE
+                                        </button>
+                                    </div>
+                                </div>
                             </div>
-
-                            {/* Use Prompt Button */}
-                            <button
-                                onClick={() => setInputPrompt(item.prompt)}
-                                className="w-full py-1.5 bg-white/10 hover:bg-white/20 backdrop-blur-md rounded-lg text-xs font-medium text-white flex items-center justify-center gap-1 transition-colors border border-white/10"
-                            >
-                                <ArrowUpRight size={12} />
-                                Use Prompt
-                            </button>
-                        </div>
+                        ))}
                     </div>
-                ))}
-
-                {/* Coming Soon Placeholder */}
-                <div className="text-center py-8">
-                    <p className="text-gray-500 text-sm">Community feed coming soon!</p>
-                    <p className="text-gray-600 text-xs mt-2">&quot;Share your creations with the world&quot;</p>
-                </div>
+                ) : (
+                    <div className="h-full flex flex-col items-center justify-center text-center p-4 text-gray-500">
+                        <div className="w-12 h-12 bg-white/5 rounded-full flex items-center justify-center mb-3">
+                            <Sparkles size={20} className="text-purple-400/50" />
+                        </div>
+                        <p className="text-sm font-medium text-gray-400">Community Feed</p>
+                        <p className="text-xs mt-1">Share your creations with the world</p>
+                    </div>
+                )}
             </div>
         </div>
     );
