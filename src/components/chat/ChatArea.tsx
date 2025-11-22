@@ -10,6 +10,7 @@ import { compressImage } from '@/lib/imageUtils';
 import GeminiLogo3D from '../ui/GeminiLogo3D';
 import Toggle3D from '../ui/Toggle3D';
 import ImageGenerationSkeleton from '../ui/ImageGenerationSkeleton';
+import MessageSkeleton from '../ui/MessageSkeleton';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { useUser } from "@stackframe/stack";
@@ -55,7 +56,7 @@ const PDFMessage = ({ pdfUrl }: { pdfUrl: string }) => {
 };
 
 export default function ChatArea() {
-    const { inputPrompt, setInputPrompt, chatHistory, addMessage, toggleLeftSidebar, toggleRightSidebar, isLeftSidebarOpen, isRightSidebarOpen, generateImage, isGeneratingImage } = useApp();
+    const { inputPrompt, setInputPrompt, chatHistory, addMessage, toggleLeftSidebar, toggleRightSidebar, isLeftSidebarOpen, isRightSidebarOpen, generateImage, isGeneratingImage, currentChatId } = useApp();
     const user = useUser();
     const [isLoading, setIsLoading] = useState(false);
     const [selectedImage, setSelectedImage] = useState<string | null>(null);
@@ -190,7 +191,7 @@ export default function ChatArea() {
             const res = await fetch('/api/chat', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ prompt, image: finalImageUrl, messages: sanitizedHistory }),
+                body: JSON.stringify({ prompt, image: finalImageUrl, messages: sanitizedHistory, chatId: currentChatId }),
             });
 
             const contentType = res.headers.get("content-type");
@@ -461,10 +462,8 @@ export default function ChatArea() {
                                     <div className="w-10 h-10 rounded-full overflow-hidden shrink-0 mt-1 bg-black/20 border border-white/10">
                                         <GeminiLogo3D />
                                     </div>
-                                    <div className="flex items-center gap-1 p-4">
-                                        <div className="w-2 h-2 bg-white/50 rounded-full animate-bounce" style={{ animationDelay: '0s' }} />
-                                        <div className="w-2 h-2 bg-white/50 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }} />
-                                        <div className="w-2 h-2 bg-white/50 rounded-full animate-bounce" style={{ animationDelay: '0.4s' }} />
+                                    <div className="max-w-[80%] md:max-w-[70%] p-4 rounded-2xl bg-transparent text-gray-100 rounded-tl-sm">
+                                        <MessageSkeleton />
                                     </div>
                                 </motion.div>
                             )}

@@ -8,7 +8,7 @@ import Toggle3D from '../ui/Toggle3D';
 import { useUser, UserButton } from "@stackframe/stack";
 
 export default function LeftSidebar() {
-    const { chatHistory, clearHistory, toggleLeftSidebar, savedChats, startNewChat, loadChat, deleteChat, isLeftSidebarOpen, toggleUploadModal } = useApp();
+    const { chatHistory, clearHistory, toggleLeftSidebar, savedChats, startNewChat, loadChat, deleteChat, isLeftSidebarOpen, toggleUploadModal, currentChatId } = useApp();
     const user = useUser();
 
     // Mock history removed as per user request
@@ -54,50 +54,57 @@ export default function LeftSidebar() {
             {/* Chat History List */}
             <div className="flex-1 overflow-y-auto px-2 py-2 space-y-6 custom-scrollbar">
 
-                {/* Today's Session */}
-                {hasCurrentSession && (
+                {/* Active Chat */}
+                {savedChats.some(chat => chat.id === currentChatId) && (
                     <div>
-                        <h3 className="px-4 text-xs font-semibold text-gray-500 mb-2 uppercase tracking-wider">Today</h3>
+                        <h3 className="px-4 text-xs font-semibold text-gray-500 mb-2 uppercase tracking-wider">Active Chat</h3>
                         <div className="space-y-1">
-                            <button className="w-full flex items-center gap-3 px-4 py-2 text-sm text-white bg-white/10 rounded-lg transition-colors group">
-                                <MessageSquare size={16} className="shrink-0" />
-                                <span className="truncate text-left flex-1">
-                                    {(() => {
-                                        const lastUserMsg = [...chatHistory].reverse().find(msg => msg.role === 'user');
-                                        return (lastUserMsg ? lastUserMsg.content : chatHistory[0]?.content || '').slice(0, 20) + '...';
-                                    })()}
-                                </span>
-                                <MoreHorizontal size={14} className="opacity-0 group-hover:opacity-100 transition-opacity" />
-                            </button>
-                        </div>
-                    </div>
-                )}
-                {/* Saved Chats */}
-                {savedChats.length > 0 && (
-                    <div>
-                        <h3 className="px-4 text-xs font-semibold text-gray-500 mb-2 uppercase tracking-wider">Saved Chats</h3>
-                        <div className="space-y-1">
-                            {savedChats.map((chat) => (
+                            {savedChats.filter(chat => chat.id === currentChatId).map(chat => (
                                 <div key={chat.id} className="group relative px-2">
                                     <button
                                         onClick={() => loadChat(chat.id)}
-                                        className="w-full flex items-center gap-3 px-4 py-2 text-sm text-gray-400 hover:text-white hover:bg-white/5 rounded-lg transition-colors"
+                                        className="w-full flex items-center gap-3 px-4 py-2 text-sm text-white bg-white/10 rounded-lg transition-colors border border-white/10"
                                     >
-                                        <MessageSquare size={16} className="shrink-0" />
-                                        <span className="truncate text-left flex-1">{chat.title}</span>
-                                    </button>
-                                    <button
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            deleteChat(chat.id);
-                                        }}
-                                        className="absolute right-4 top-1/2 -translate-y-1/2 p-1.5 text-gray-500 hover:text-red-400 hover:bg-white/10 rounded-md transition-all"
-                                        title="Delete chat"
-                                    >
-                                        <Trash2 size={14} />
+                                        <MessageSquare size={16} className="shrink-0 text-purple-400" />
+                                        <span className="truncate text-left flex-1 font-medium">{chat.title}</span>
+                                        <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
                                     </button>
                                 </div>
                             ))}
+                        </div>
+                    </div>
+                )}
+
+                {/* Chat History */}
+                {savedChats.filter(chat => chat.id !== currentChatId).length > 0 && (
+                    <div>
+                        <h3 className="px-4 text-xs font-semibold text-gray-500 mb-2 uppercase tracking-wider">Chat History</h3>
+                        <div className="space-y-1">
+                            {savedChats
+                                .filter(chat => chat.id !== currentChatId)
+                                .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+                                .map((chat) => (
+                                    <div key={chat.id} className="group relative px-2">
+                                        <button
+                                            onClick={() => loadChat(chat.id)}
+                                            className="w-full flex items-center gap-3 px-4 py-2 text-sm text-gray-400 hover:text-white hover:bg-white/5 rounded-lg transition-colors"
+                                        >
+                                            <MessageSquare size={16} className="shrink-0" />
+                                            <span className="truncate text-left flex-1">{chat.title}</span>
+                                            <span className="text-[10px] text-gray-600">{chat.date}</span>
+                                        </button>
+                                        <button
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                deleteChat(chat.id);
+                                            }}
+                                            className="absolute right-4 top-1/2 -translate-y-1/2 p-1.5 text-gray-500 hover:text-red-400 hover:bg-white/10 rounded-md transition-all opacity-0 group-hover:opacity-100"
+                                            title="Delete chat"
+                                        >
+                                            <Trash2 size={14} />
+                                        </button>
+                                    </div>
+                                ))}
                         </div>
                     </div>
                 )}

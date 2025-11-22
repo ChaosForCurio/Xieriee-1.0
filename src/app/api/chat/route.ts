@@ -44,13 +44,13 @@ export async function POST(request: Request) {
         // 3. Retrieve Context (Facts + Summary + History)
         let context = "";
 
-        // A. Facts (Existing Memory System)
-        if (userId !== 'anonymous') {
-            const memories = await getMemories(userId);
-            if (memories.length > 0) {
-                context += formatMemoriesForContext(memories) + "\n\n";
-            }
-        }
+        // A. Facts (Existing Memory System) - DISABLED per user request for isolated context
+        // if (userId !== 'anonymous') {
+        //     const memories = await getMemories(userId);
+        //     if (memories.length > 0) {
+        //         context += formatMemoriesForContext(memories) + "\n\n";
+        //     }
+        // }
 
         // B. Conversation Summary (New System)
         const summary = await getSummary(chatId);

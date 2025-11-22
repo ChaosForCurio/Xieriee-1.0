@@ -22,6 +22,7 @@ export interface SavedChat {
 
 export interface FeedItem {
     id: string; // Changed to string for Firestore ID
+    userId: string;
     user: string;
     avatar: string;
     prompt: string;
@@ -49,11 +50,14 @@ interface AppContextType {
     deleteChat: (chatId: string) => void;
     communityFeed: FeedItem[];
     addToFeed: (item: Omit<FeedItem, 'id' | 'userId' | 'userAvatar' | 'userName' | 'createdAt' | 'likes'>, file?: File) => Promise<void>;
+    deleteFeedItem: (id: string) => Promise<void>;
+    likeFeedItem: (id: string) => Promise<void>;
     uploadImage: (file: File) => Promise<string>;
     userAvatar: string;
     setUserAvatar: (avatar: string) => void;
     isGeneratingImage: boolean;
     generateImage: (prompt: string, model?: string, image?: string) => Promise<string | null>;
+    currentChatId: string;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -67,7 +71,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const [savedChats, setSavedChats] = useState<SavedChat[]>([]);
     const [communityFeed, setCommunityFeed] = useState<FeedItem[]>([]);
     const [userAvatar, setUserAvatar] = useState('https://i.pravatar.cc/150?img=68');
+    const [currentChatId, setCurrentChatId] = useState<string>(`chat-${Date.now()}`);
     const [isGeneratingImage, setIsGeneratingImage] = useState(false);
+
+    // Refs for optimization
     const user = useUser();
 
     // Fetch community feed from Firestore on mount
@@ -78,6 +85,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
                 const querySnapshot = await getDocs(q);
                 const feedData: FeedItem[] = querySnapshot.docs.map(doc => ({
                     id: doc.id,
+                    userId: doc.data().userId || 'anonymous',
                     user: doc.data().userName || 'Anonymous',
                     avatar: doc.data().userAvatar || 'https://i.pravatar.cc/150?img=68',
                     prompt: doc.data().prompt || '',
@@ -142,6 +150,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         const newItem: FeedItem = {
             ...item,
             id: tempId,
+            userId: user?.id || 'anonymous',
             user: user?.displayName || 'Anonymous',
             avatar: user?.profileImageUrl || 'https://i.pravatar.cc/150?img=68',
             likes: 0,
@@ -195,6 +204,35 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         }
     };
 
+    const deleteFeedItem = async (id: string) => {
+        // Optimistic update
+        setCommunityFeed(prev => prev.filter(item => item.id !== id));
+        try {
+            await fetch(`/api/feed/${id}`, { method: 'DELETE' });
+        } catch (error) {
+            console.error("Failed to delete feed item:", error);
+            // Revert on failure (would need to re-fetch or keep item in memory to revert properly, 
+            // but for now we just log error. In a real app we'd handle rollback better)
+        }
+    };
+
+    const likeFeedItem = async (id: string) => {
+        // Optimistic update
+        setCommunityFeed(prev => prev.map(item =>
+            item.id === id ? { ...item, likes: item.likes + 1 } : item
+        ));
+
+        try {
+            await fetch(`/api/feed/${id}/like`, { method: 'POST' });
+        } catch (error) {
+            console.error("Failed to like feed item:", error);
+            // Revert
+            setCommunityFeed(prev => prev.map(item =>
+                item.id === id ? { ...item, likes: item.likes - 1 } : item
+            ));
+        }
+    };
+
     const messageIdCounter = useRef(0);
 
     // Load sidebar states from localStorage on mount (keep UI preferences local)
@@ -228,6 +266,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         const fetchHistory = async () => {
             if (!user) {
                 setChatHistory([]);
+                setSavedChats([]);
                 return;
             }
 
@@ -239,15 +278,33 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             try {
                 const res = await fetch('/api/chats');
                 const data = await res.json();
-                if (data.success && data.chats.length > 0) {
-                    // Load the most recent chat
-                    const lastChat = data.chats[0];
-                    loadChat(lastChat.id);
+                if (data.success) {
+                    const loadedChats = data.chats.map((c: any) => ({
+                        id: c.id,
+                        title: c.title,
+                        date: new Date(c.createdAt).toLocaleDateString(),
+                        messages: [] // Messages are loaded on demand
+                    }));
+
+                    // Deduplicate chats by ID to prevent React key errors
+                    const uniqueChats = Array.from(new Map(loadedChats.map((c: any) => [c.id, c])).values()) as SavedChat[];
+                    setSavedChats(uniqueChats);
+
+                    if (uniqueChats.length > 0) {
+                        // Load the most recent chat
+                        loadChat(uniqueChats[0].id);
+                    } else {
+                        // No chats, start a new one and ensure it's in the list
+                        startNewChat();
+                    }
                 } else {
                     setChatHistory([]);
+                    startNewChat();
                 }
             } catch (error) {
                 console.error("Failed to load initial chat history:", error);
+                setChatHistory([]);
+                startNewChat();
             }
         };
 
@@ -271,7 +328,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             if (savedChats.length < 6) {
                 const lastUserMsg = [...chatHistory].reverse().find(msg => msg.role === 'user');
                 const titleText = lastUserMsg ? lastUserMsg.content : chatHistory[0].content;
-                const chatId = `chat-${Date.now()}`;
+                // Use the currentChatId for saving
+                const chatId = currentChatId;
 
                 const newSavedChat: SavedChat = {
                     id: chatId,
@@ -280,8 +338,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
                     messages: [...chatHistory]
                 };
 
-                // Optimistic update
-                setSavedChats(prev => [newSavedChat, ...prev]);
+                // Optimistic update: Remove existing if present, then add to top
+                setSavedChats(prev => {
+                    const filtered = prev.filter(c => c.id !== chatId);
+                    return [newSavedChat, ...filtered];
+                });
 
                 // Persist to DB
                 try {
@@ -294,13 +355,30 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
                     console.error("Failed to save chat:", error);
                 }
             }
+        } else {
+            // If current chat was empty, remove it from savedChats list if it's there (cleanup placeholder)
+            setSavedChats(prev => prev.filter(c => c.id !== currentChatId));
         }
+
         setChatHistory([]);
         setInputPrompt('');
+        // Generate a new ID for the new session
+        const newId = `chat-${Date.now()}`;
+        setCurrentChatId(newId);
+
+        // Add new empty chat to savedChats so it appears in sidebar immediately
+        const newChatSession: SavedChat = {
+            id: newId,
+            title: 'New Chat',
+            date: new Date().toLocaleDateString(),
+            messages: []
+        };
+        setSavedChats(prev => [newChatSession, ...prev]);
     };
 
     const loadChat = async (id: string) => {
         try {
+            setCurrentChatId(id); // Set the active chat ID
             const res = await fetch(`/api/chats/${id}`);
             const data = await res.json();
             if (data.success) {
@@ -328,10 +406,30 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     };
 
     const clearHistory = async () => {
+        // If the current chat is saved, delete it from the backend
+        if (savedChats.some(c => c.id === currentChatId)) {
+            try {
+                await fetch(`/api/chats/${currentChatId}`, { method: 'DELETE' });
+                // Remove from savedChats
+                setSavedChats(prev => prev.filter(c => c.id !== currentChatId));
+            } catch (error) {
+                console.error("Failed to delete chat history:", error);
+            }
+        }
+
         setChatHistory([]);
-        // Also clear from DB if needed, or just clear local view
-        // For now, just clear local view as requested by "Clear Conversation" button usually
-        // If we want to delete from DB, we should call an API
+        // Start a fresh session ID to ensure context is cleared on backend too
+        const newId = `chat-${Date.now()}`;
+        setCurrentChatId(newId);
+
+        // Add new empty chat to savedChats so it appears in sidebar immediately
+        const newChatSession: SavedChat = {
+            id: newId,
+            title: 'New Chat',
+            date: new Date().toLocaleDateString(),
+            messages: []
+        };
+        setSavedChats(prev => [newChatSession, ...prev]);
     };
 
     const generateImage = async (prompt: string, model: string = 'flux', image?: string): Promise<string | null> => {
@@ -398,6 +496,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             toggleRightSidebar,
             userAvatar,
             setUserAvatar,
+            currentChatId,
             isGeneratingImage,
             generateImage,
             savedChats,
@@ -405,6 +504,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             loadChat,
             deleteChat,
             addToFeed,
+            deleteFeedItem,
+            likeFeedItem,
             uploadImage,
             communityFeed,
             isUploadModalOpen,

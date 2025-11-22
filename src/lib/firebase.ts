@@ -4,14 +4,18 @@ import { getFirestore } from "firebase/firestore";
 
 // Your web app's Firebase configuration
 const firebaseConfig = {
-    apiKey: "AIzaSyDSX_w-LDE7ZbZQwrxaG9ymU_kGRN1Se6M",
-    authDomain: "chat-ai-34217.firebaseapp.com",
-    projectId: "chat-ai-34217",
-    storageBucket: "chat-ai-34217.firebasestorage.app",
-    messagingSenderId: "720193222419",
-    appId: "1:720193222419:web:3c14c814c9e92a31e54ce6",
-    measurementId: "G-WHG9FDN4ND"
+    apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
+    authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
+    projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+    storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
+    messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+    appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
+    measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID
 };
+
+if (!firebaseConfig.apiKey) {
+    console.warn('Firebase API Key is missing! Make sure you have added it to your .env.local file and restarted the server.');
+}
 
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);

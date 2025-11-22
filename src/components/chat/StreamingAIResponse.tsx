@@ -56,90 +56,20 @@ interface StreamingAIResponseProps {
 }
 
 export default function StreamingAIResponse({ content, isNew, onDownload }: StreamingAIResponseProps) {
-    const [displayedContent, setDisplayedContent] = useState(isNew ? '' : content);
-    const [isStreaming, setIsStreaming] = useState(isNew);
-    const indexRef = useRef(0);
-
-    useEffect(() => {
-        if (!isNew) {
-            setDisplayedContent(content);
-            return;
-        }
-
-        // If content changes (e.g. updated from API), reset streaming if it was empty
-        // But usually content is fixed for a message. 
-        // If we are simulating, we take the full content and stream it.
-
-        const stream = () => {
-            if (indexRef.current < content.length) {
-                // Add a chunk of characters at a time for better speed/feel
-                const chunkSize = 2;
-                const nextIndex = Math.min(indexRef.current + chunkSize, content.length);
-                setDisplayedContent(content.slice(0, nextIndex));
-                indexRef.current = nextIndex;
-
-                // Randomize delay slightly for natural typing feel
-                const delay = Math.random() * 10 + 10;
-                setTimeout(stream, delay);
-            } else {
-                setIsStreaming(false);
-            }
-        };
-
-        if (isStreaming && indexRef.current === 0) {
-            stream();
-        }
-
-    }, [content, isNew, isStreaming]);
-
-    // Extract images/PDFs from the *displayed* content? 
-    // Or should we extract from the *full* content and only show them when their markdown is fully rendered?
-    // Actually, if we stream the raw markdown, the regex might fail until the full link is present.
-    // So images might "pop" in. That's acceptable.
-
-    // However, to avoid "broken" image links during typing (e.g. `![im`), we might want to handle that.
-    // ReactMarkdown handles incomplete markdown gracefully usually.
-
-    // Let's parse the DISPLAYED content.
-    const imageMatch = displayedContent.match(/!\[.*?\]\((.*?)\)/);
+    // Extract images/PDFs from the content
+    const imageMatch = content.match(/!\[.*?\]\((.*?)\)/);
     const imageUrl = imageMatch ? imageMatch[1] : null;
 
-    const pdfMatch = displayedContent.match(/\[PDF Attachment\]\((.*?)\)/);
+    const pdfMatch = content.match(/\[PDF Attachment\]\((.*?)\)/);
     const pdfUrl = pdfMatch ? pdfMatch[1] : null;
 
-    let textContent = displayedContent;
+    let textContent = content;
     if (imageUrl) textContent = textContent.replace(/!\[.*?\]\(.*?\)/, '');
     if (pdfUrl) textContent = textContent.replace(/\[PDF Attachment\]\(.*?\)/, '');
     textContent = textContent.trim();
 
     return (
         <div className={`prose prose-invert max-w-none prose-p:leading-relaxed prose-pre:p-0 prose-pre:bg-transparent relative`}>
-            {/* Custom style for blur effect on the container or text? 
-                The user wants "blur-text effect". 
-                We can add a class that applies a subtle blur to the *last character*? 
-                Or just the whole block has a "focusing" vibe?
-                
-                Let's try adding a CSS animation for the text appearance.
-                Since ReactMarkdown re-renders, it's hard to animate individual new chars.
-                But we can animate the opacity of the whole block if it's very short? No.
-                
-                Let's stick to the Typewriter effect which is "line by line".
-            */}
-            <style jsx global>{`
-                @keyframes blink {
-                    0%, 100% { opacity: 1; }
-                    50% { opacity: 0; }
-                }
-                .blinking-cursor::after {
-                    content: '▋';
-                    display: inline-block;
-                    margin-left: 2px;
-                    color: #a855f7; /* Purple cursor */
-                    animation: blink 1s step-end infinite;
-                    vertical-align: baseline;
-                }
-            `}</style>
-
             {
                 imageUrl && (
                     <ImageMessage
@@ -157,11 +87,14 @@ export default function StreamingAIResponse({ content, isNew, onDownload }: Stre
 
             {
                 textContent && (
-                    <div className={isStreaming ? 'blinking-cursor' : ''}>
+                    <motion.div
+                        initial={isNew ? { filter: 'blur(10px)', opacity: 0 } : { filter: 'blur(0px)', opacity: 1 }}
+                        animate={{ filter: 'blur(0px)', opacity: 1 }}
+                        transition={{ duration: 0.6, ease: "easeOut" }}
+                    >
                         <ReactMarkdown
                             remarkPlugins={[remarkGfm]}
                             components={{
-                                // Removed animate-in fade-in to prevent flickering during streaming
                                 p: ({ children }) => <p className="mb-2 last:mb-0">{children}</p>,
                                 code: ({ inline, className, children, ...props }: React.ComponentPropsWithoutRef<'code'> & { inline?: boolean }) => {
                                     const match = /language-(\w+)/.exec(className || '');
@@ -193,7 +126,7 @@ export default function StreamingAIResponse({ content, isNew, onDownload }: Stre
                         >
                             {textContent}
                         </ReactMarkdown>
-                    </div>
+                    </motion.div>
                 )
             }
         </div >

@@ -2,12 +2,14 @@
 /* eslint-disable @next/next/no-img-element */
 
 import React from 'react';
-import { Heart, Share2, MoreVertical, Sparkles, ArrowUpRight } from 'lucide-react';
+import { Heart, Share2, MoreVertical, Sparkles, ArrowUpRight, Trash2 } from 'lucide-react';
 import { useApp } from '@/context/AppContext';
 import Toggle3D from '../ui/Toggle3D';
+import { useUser } from "@stackframe/stack";
 
 export default function RightSidebar() {
-    const { setInputPrompt, toggleRightSidebar, communityFeed } = useApp();
+    const { setInputPrompt, toggleRightSidebar, communityFeed, deleteFeedItem, likeFeedItem } = useApp();
+    const user = useUser();
 
     return (
         <div className="h-full flex flex-col bg-[#0a0a0a] border-l border-white/5">
@@ -65,17 +67,50 @@ export default function RightSidebar() {
                                                 className="w-4 h-4 rounded-full object-cover border border-white/30 shrink-0"
                                             />
                                             <span className="text-[10px] font-medium text-white/60 truncate">{item.user}</span>
+
+                                            {/* Delete Button (Only for owner) */}
+                                            {user && (user.id === item.userId || user.displayName === item.user) && (
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        if (confirm('Delete this post?')) {
+                                                            deleteFeedItem(item.id);
+                                                        }
+                                                    }}
+                                                    className="ml-1 p-1 text-gray-500 hover:text-red-400 transition-colors"
+                                                    title="Delete post"
+                                                >
+                                                    <Trash2 size={12} />
+                                                </button>
+                                            )}
                                         </div>
 
-                                        <button
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                setInputPrompt(item.prompt);
-                                            }}
-                                            className="px-2 py-0.5 bg-white/10 hover:bg-white/20 text-white text-[9px] font-medium rounded transition-colors shrink-0"
-                                        >
-                                            USE
-                                        </button>
+                                        <div className="flex items-center gap-2">
+                                            {/* Like Button */}
+                                            <button
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    likeFeedItem(item.id);
+                                                }}
+                                                className="group/like flex items-center gap-1 text-white/60 hover:text-red-400 transition-colors"
+                                            >
+                                                <Heart
+                                                    size={12}
+                                                    className={`transition-all duration-300 ${item.likes > 0 ? 'fill-red-500 text-red-500' : 'group-hover/like:scale-110'}`}
+                                                />
+                                                <span className="text-[10px]">{item.likes}</span>
+                                            </button>
+
+                                            <button
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    setInputPrompt(item.prompt);
+                                                }}
+                                                className="px-2 py-0.5 bg-white/10 hover:bg-white/20 text-white text-[9px] font-medium rounded transition-colors shrink-0"
+                                            >
+                                                USE
+                                            </button>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
