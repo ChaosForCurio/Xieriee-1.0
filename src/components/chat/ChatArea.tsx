@@ -193,7 +193,20 @@ export default function ChatArea() {
                 body: JSON.stringify({ prompt, image: finalImageUrl, messages: sanitizedHistory }),
             });
 
-            const data = await res.json();
+            const contentType = res.headers.get("content-type");
+            let data;
+            if (contentType && contentType.indexOf("application/json") !== -1) {
+                data = await res.json();
+            } else {
+                const text = await res.text();
+                console.error("Server returned non-JSON response:", text);
+                if (text.includes("Request Entity Too Large") || res.status === 413) {
+                    addMessage('ai', "❌ Error: The message or attachment is too large. Please try a smaller file.");
+                } else {
+                    addMessage('ai', "❌ An error occurred while processing your request.");
+                }
+                return;
+            }
 
             if (data.response) {
                 addMessage('ai', data.response);

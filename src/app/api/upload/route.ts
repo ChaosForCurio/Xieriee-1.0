@@ -11,8 +11,15 @@ cloudinary.config({
 export async function POST(request: Request) {
   try {
     const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME || process.env.CLOUDINARY_CLOUD_NAME;
-    if (!cloudName || !process.env.CLOUDINARY_API_KEY || !process.env.CLOUDINARY_API_SECRET) {
-      console.error('Missing Cloudinary credentials');
+    const apiKey = process.env.CLOUDINARY_API_KEY;
+    const apiSecret = process.env.CLOUDINARY_API_SECRET;
+
+    if (!cloudName || !apiKey || !apiSecret) {
+      console.error('Missing Cloudinary credentials:', {
+        cloudName: !!cloudName,
+        apiKey: !!apiKey,
+        apiSecret: !!apiSecret
+      });
       return NextResponse.json({ error: 'Server configuration error: Missing Cloudinary credentials' }, { status: 500 });
     }
 
@@ -20,10 +27,11 @@ export async function POST(request: Request) {
     const file = formData.get('file');
 
     if (!file || !(file instanceof File)) {
+      console.error('No file provided in request');
       return NextResponse.json({ error: 'No file provided' }, { status: 400 });
     }
 
-    console.log('[API Upload] Starting Cloudinary upload for:', file.name);
+    console.log('[API Upload] Starting Cloudinary upload for:', file.name, 'Size:', file.size, 'Type:', file.type);
 
     // Convert file to buffer
     const arrayBuffer = await file.arrayBuffer();
@@ -56,7 +64,7 @@ export async function POST(request: Request) {
     console.error('Error uploading to Cloudinary:', error);
     return NextResponse.json({
       error: 'Upload failed',
-      details: error.message
+      details: error.message || 'Unknown error'
     }, { status: 500 });
   }
 }

@@ -26,12 +26,25 @@ export default function UploadModal() {
                     image: base64Image
                 }),
             });
-            const data = await res.json();
-            if (data.response) {
-                setPrompt(data.response);
+
+            const contentType = res.headers.get("content-type");
+            if (contentType && contentType.indexOf("application/json") !== -1) {
+                const data = await res.json();
+                if (data.response) {
+                    setPrompt(data.response);
+                }
+            } else {
+                const text = await res.text();
+                console.error("Server returned non-JSON response:", text);
+                if (text.includes("Request Entity Too Large") || res.status === 413) {
+                    alert("Image is too large. Please upload a smaller image.");
+                } else {
+                    alert("An error occurred while analyzing the image.");
+                }
             }
         } catch (error) {
             console.error("Error analyzing image:", error);
+            alert("Failed to analyze image. Please try again.");
         } finally {
             setIsAnalyzing(false);
         }
