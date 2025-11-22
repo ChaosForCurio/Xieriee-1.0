@@ -9,17 +9,16 @@ export async function GET() {
         const user = await stackServerApp.getUser();
         const userId = user?.id;
 
-        let query = db.select().from(chats);
-
-        if (userId) {
-            // If logged in, get user's chats
-            query = query.where(eq(chats.userId, userId));
-        } else {
+        if (!userId) {
             // If not logged in, return empty chats (localStorage will handle guest chats)
             return NextResponse.json({ success: true, chats: [] });
         }
 
-        const allChats = await query.orderBy(desc(chats.createdAt));
+        const allChats = await db.select()
+            .from(chats)
+            .where(eq(chats.userId, userId))
+            .orderBy(desc(chats.createdAt));
+
         return NextResponse.json({ success: true, chats: allChats });
     } catch (error) {
         console.error('Error fetching chats:', error);

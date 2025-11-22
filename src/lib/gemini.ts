@@ -1,4 +1,4 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { GoogleGenerativeAI, Part, Content } from "@google/generative-ai";
 
 const apiKey = process.env.GEMINI_API_KEY;
 
@@ -178,7 +178,7 @@ You must ALWAYS format your response using the following rules:
 ========================================================`
 });
 
-export async function getGeminiResponse(prompt: string, image?: string, context?: string, history?: { role: string; parts: { text: string }[] }[]) {
+export async function getGeminiResponse(prompt: string, image?: string, context?: string, history?: Content[]) {
   try {
     if (!apiKey) {
       console.error("API Key is missing in getGeminiResponse");
@@ -198,7 +198,7 @@ export async function getGeminiResponse(prompt: string, image?: string, context?
     // 2. If text only: Use startChat with history + context (system instruction)
 
     if (image) {
-      const content: { inlineData?: { data: string; mimeType: string }; text?: string }[] = [];
+      const content: Part[] = [];
 
       // Extract base64 data
       const base64Data = image.split(',')[1];
@@ -224,13 +224,13 @@ export async function getGeminiResponse(prompt: string, image?: string, context?
       return response.text();
     } else {
       // Text-only chat with history
-      const systemInstructionText = model.systemInstruction && model.systemInstruction.parts
-        ? model.systemInstruction.parts.map(p => p.text).join('')
+      const systemInstructionText = model.systemInstruction && typeof model.systemInstruction === 'object' && 'parts' in model.systemInstruction
+        ? (model.systemInstruction as Content).parts.map(p => p.text).join('')
         : "";
 
       const chat = model.startChat({
         history: history || [],
-        systemInstruction: context ? `${systemInstructionText}\n${context}` : model.systemInstruction
+        systemInstruction: context ? `${systemInstructionText}\n${context}` : undefined
       });
 
       // Send the new message
