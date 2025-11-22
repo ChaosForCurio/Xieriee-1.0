@@ -100,7 +100,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }, []);
 
     // Load saved chats from API
-    // Load saved chats from API
     const fetchSavedChats = async () => {
         try {
             const res = await fetch('/api/chats');
@@ -150,7 +149,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
                 // Use console.warn to avoid triggering Next.js error overlay in dev mode
                 console.warn('[LocalStorage] Failed to save chat history:', e);
 
-                if (e.name === 'QuotaExceededError' || e.code === 22 || e.code === 1014) {
+                const err = e as { name?: string; code?: number };
+                if (err?.name === 'QuotaExceededError' || err?.code === 22 || err?.code === 1014) {
                     console.warn('[LocalStorage] Quota exceeded! Trying to save without images...');
                     // Fallback: Save messages but strip out base64 images to save space
                     const textOnlyHistory = chatHistory.map(msg => ({
