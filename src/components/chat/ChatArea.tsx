@@ -291,7 +291,16 @@ export default function ChatArea() {
                                 >
                                     {msg.role === 'ai' && (
                                         <div className="w-10 h-10 rounded-full overflow-hidden shrink-0 mt-1 bg-black/20 border border-white/10">
-                                            <GeminiLogo3D />
+                                            {/* Mobile/Tablet Avatar */}
+                                            <img
+                                                src="https://www.notebookcheck.com/fileadmin/Notebooks/News/_nc4/google-gemini_0051.jpg"
+                                                alt="AI"
+                                                className="w-full h-full object-cover md:hidden"
+                                            />
+                                            {/* Desktop Avatar */}
+                                            <div className="hidden md:block w-full h-full">
+                                                <GeminiLogo3D />
+                                            </div>
                                         </div>
                                     )}
 
@@ -388,7 +397,16 @@ export default function ChatArea() {
                                     className="flex gap-4 justify-start"
                                 >
                                     <div className="w-10 h-10 rounded-full overflow-hidden shrink-0 mt-1 bg-black/20 border border-white/10">
-                                        <GeminiLogo3D />
+                                        {/* Mobile/Tablet Avatar */}
+                                        <img
+                                            src="https://www.notebookcheck.com/fileadmin/Notebooks/News/_nc4/google-gemini_0051.jpg"
+                                            alt="AI"
+                                            className="w-full h-full object-cover md:hidden"
+                                        />
+                                        {/* Desktop Avatar */}
+                                        <div className="hidden md:block w-full h-full">
+                                            <GeminiLogo3D />
+                                        </div>
                                     </div>
                                     <div className="max-w-[80%] md:max-w-[60%] w-full">
                                         <ImageGenerationSkeleton />
