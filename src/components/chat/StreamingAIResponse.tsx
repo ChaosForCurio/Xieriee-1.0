@@ -122,7 +122,7 @@ export default function StreamingAIResponse({ content, isNew, onDownload }: Stre
                                 th: ({ children }) => <th className="px-4 py-3 text-left text-xs font-medium text-white/70 uppercase tracking-wider">{children}</th>,
                                 td: ({ children }) => <td className="px-4 py-3 whitespace-nowrap text-sm text-white/80 border-t border-white/5">{children}</td>,
                                 blockquote: ({ children }) => <blockquote className="border-l-4 border-purple-500/50 pl-4 italic my-4 text-white/60">{children}</blockquote>,
-                                blockquote: ({ children }) => <blockquote className="border-l-4 border-purple-500/50 pl-4 italic my-4 text-white/60">{children}</blockquote>,
+
                                 a: ({ href, children }) => {
                                     if (!href) return <span className="text-blue-400">{children}</span>;
 
