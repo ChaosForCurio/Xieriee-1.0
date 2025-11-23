@@ -9,7 +9,13 @@ import { performWebSearch } from '@/lib/serper';
 
 export async function POST(request: Request) {
     try {
-        const user = await stackServerApp.getUser();
+        let user;
+        try {
+            user = await stackServerApp.getUser();
+        } catch (authError) {
+            console.error("Stack Auth Error:", authError);
+            user = null;
+        }
         const userId = user?.id || 'anonymous'; // Fallback for now, but ideally require auth
 
         const { prompt, image, messages, chatId: providedChatId } = await request.json();
