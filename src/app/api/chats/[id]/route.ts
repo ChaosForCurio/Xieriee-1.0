@@ -47,6 +47,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
         const chat = await db.select().from(chats).where(and(eq(chats.id, id), eq(chats.userId, userId))).limit(1);
 
         if (chat.length === 0) {
+            console.warn(`Chat not found or unauthorized. ChatID: ${id}, UserID: ${userId}`);
             return NextResponse.json({ success: false, error: 'Chat not found or unauthorized' }, { status: 404 });
         }
 

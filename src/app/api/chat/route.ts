@@ -1,9 +1,11 @@
 import { NextResponse } from 'next/server';
 import { getGeminiResponse } from '@/lib/gemini';
+import { getGroqResponse } from '@/lib/groq';
 import { stackServerApp } from '@/stack';
 import { getMemories, saveMemory, forgetMemory, formatMemoriesForContext } from '@/lib/memory';
 import { saveMessage, getChatHistory, saveSummary, getSummary, isRateLimited, ensureChat } from '@/lib/db-actions';
 import { Content } from "@google/generative-ai";
+import { performWebSearch } from '@/lib/serper';
 
 export async function POST(request: Request) {
     try {
@@ -18,14 +20,17 @@ export async function POST(request: Request) {
         }
 
         // 1. Rate Limit
+        console.log("Step 1: Checking Rate Limit");
         if (await isRateLimited(userId)) {
             return NextResponse.json({ response: "You are sending messages too quickly. Please wait a moment." });
         }
 
         // Ensure chat exists
+        console.log("Step 1.5: Ensuring Chat Exists");
         await ensureChat(chatId, userId, 'New Conversation');
 
         // 2. Save User Message
+        console.log("Step 2: Saving User Message");
         // Construct full content if image is present for DB storage
         let dbContent = prompt;
         if (image) {
@@ -42,7 +47,58 @@ export async function POST(request: Request) {
         await saveMessage(userId, chatId, 'user', dbContent);
 
         // 3. Retrieve Context (Facts + Summary + History)
+        console.log("Step 3: Retrieving Context");
         let context = "";
+
+        // Web Search Logic
+        let finalPrompt = prompt;
+        if (prompt && prompt.trim().toLowerCase().startsWith('@web')) {
+            console.log("Step 3.1: Web Search Triggered");
+            const searchQuery = prompt.replace(/@web/i, '').trim();
+            console.log("Search Query:", searchQuery);
+            if (searchQuery) {
+                try {
+                    console.log("Calling performWebSearch...");
+                    const searchResults = await performWebSearch(searchQuery);
+                    console.log("Web Search Results Length:", searchResults.length);
+                    context += `${searchResults}\n\n`;
+                    finalPrompt = searchQuery;
+                    context += "SYSTEM NOTE: The user requested a web search. Use the 'WEB SEARCH RESULTS' above to answer the user's question. Cite sources where possible.\n";
+                    context += "IMPORTANT: IF the user is asking about a specific person (celebrity, entrepreneur, scientist, creator, politician, etc.), YOU MUST use the following format strictly:\n\n";
+                    context += "---------------------------\n";
+                    context += "FORMAT TO FOLLOW:\n\n";
+                    context += "# PERSON NAME\n";
+                    context += "Profession | Nationality | Age (if publicly known)\n\n";
+                    context += "## 🔹 Summary\n";
+                    context += "Write a clear 4–6 line introduction about who the person is and why they are notable.\n";
+                    context += "Add citations at the end of the section.\n\n";
+                    context += "## 🔹 Basic Information\n";
+                    context += "- Full Name:\n";
+                    context += "- Born:\n";
+                    context += "- Nationality:\n";
+                    context += "- Profession(s):\n\n";
+                    context += "## 🔹 Major Achievements\n";
+                    context += "List the most important 3–6 achievements, awards, milestones, or recognitions with citations.\n\n";
+                    context += "## 🔹 Notable Works / Contributions\n";
+                    context += "List their key works (movies, books, inventions, companies, research, etc.). Use citations.\n\n";
+                    context += "## 🔹 Recent News (if available)\n";
+                    context += "Summarize any important news from the past 30–90 days. Add citations.\n\n";
+                    context += "## 🔹 Public Profiles\n";
+                    context += "List official website and public social media links (no private or speculative info).\n\n";
+                    context += "## 🔹 Sources\n";
+                    context += "Display the list of citations used.\n";
+                    context += "---------------------------\n\n";
+                    context += "If certain details are not available publicly, write: “Not publicly available.”\n";
+                    context += "Never add or guess private data.\n";
+                    context += "Never skip the structure.\n\n";
+                } catch (searchError) {
+                    console.error("Error during performWebSearch:", searchError);
+                    context += "SYSTEM NOTE: Web search failed. Please inform the user.\n\n";
+                }
+            } else {
+                context += "SYSTEM NOTE: The user typed @web but provided no query. Ask them what they want to search for.\n\n";
+            }
+        }
 
         // A. Facts (Existing Memory System) - DISABLED per user request for isolated context
         // if (userId !== 'anonymous') {
@@ -61,6 +117,7 @@ export async function POST(request: Request) {
         // C. Recent History (New System - from DB)
         // We fetch from DB to ensure consistency, but we can also use the client's messages if needed.
         // Using DB is safer for "Memory" features.
+        console.log("Step 3.5: Fetching Chat History");
         const dbHistory = await getChatHistory(userId, chatId, 10);
 
         // Format history for Gemini
@@ -109,15 +166,32 @@ export async function POST(request: Request) {
         // 4. Get AI Response
         let rawResponse = "";
         try {
-            rawResponse = await getGeminiResponse(prompt, image, context, clientHistory);
+            rawResponse = await getGeminiResponse(finalPrompt, image, context, clientHistory);
+            console.log("Gemini Raw Response:", rawResponse);
         } catch (error: any) {
             console.error("Gemini API Error:", error);
-            if (error.message?.includes('429') || error.status === 429) {
+
+            console.log("Attempting fallback to Groq...");
+            try {
+                // Fallback to Groq
+                // Note: Groq implementation here is text-only for now.
+                rawResponse = await getGroqResponse(finalPrompt, clientHistory, context);
+                console.log("Groq Response:", rawResponse);
+            } catch (groqError) {
+                console.error("Groq Fallback Error:", groqError);
+
+                // Check for rate limiting or overload specifically (from original error)
+                if (error.message?.includes('429') || error.status === 429) {
+                    return NextResponse.json({
+                        response: "I'm currently overloaded with requests. Please wait a moment before trying again."
+                    });
+                }
+
+                // Handle all other errors gracefully
                 return NextResponse.json({
-                    response: "I'm currently overloaded with requests. Please wait a moment before trying again."
+                    response: "I encountered an internal error while processing your request. Please try again later."
                 });
             }
-            throw error; // Re-throw other errors to be caught by outer try-catch
         }
 
         // 5. Parse Response for Auto-Memory JSON
@@ -266,7 +340,14 @@ export async function POST(request: Request) {
 
         return NextResponse.json({ response: finalResponse });
     } catch (error) {
-        console.error('API Error:', error);
-        return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
+        console.error('API Error in /api/chat:', error);
+        if (error instanceof Error) {
+            console.error('Error Stack:', error.stack);
+        }
+
+        // Return a friendly error message to the user instead of a 500 error
+        return NextResponse.json({
+            response: "I encountered an unexpected error. Please try again later."
+        });
     }
 }

@@ -5,6 +5,8 @@ import { storage, db } from '@/lib/firebase';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { collection, addDoc, getDocs, query, orderBy, serverTimestamp } from 'firebase/firestore';
 import { useUser } from "@stackframe/stack";
+import { toast } from 'sonner';
+import imageCompression from 'browser-image-compression';
 
 export interface ChatMessage {
     id: string;
@@ -104,27 +106,52 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
     const uploadImage = async (file: File): Promise<string> => {
         try {
-            const formData = new FormData();
-            formData.append('file', file);
+            // 1. Compress Image
+            const options = {
+                maxSizeMB: 0.8,
+                maxWidthOrHeight: 1600,
+                useWebWorker: true,
+            };
 
-            const res = await fetch('/api/upload', {
+            let compressedFile = file;
+            try {
+                compressedFile = await imageCompression(file, options);
+            } catch (error) {
+                console.warn("Image compression failed, proceeding with original file:", error);
+            }
+
+            // 2. Get Signature
+            const signRes = await fetch('/api/sign-cloudinary', { method: 'POST' });
+            if (!signRes.ok) {
+                const error = await signRes.json();
+                throw new Error(error.error || 'Failed to get upload signature');
+            }
+            const signData = await signRes.json();
+
+            // 3. Upload to Cloudinary
+            const formData = new FormData();
+            formData.append('file', compressedFile);
+            formData.append('api_key', signData.api_key);
+            formData.append('timestamp', signData.timestamp);
+            formData.append('signature', signData.signature);
+            formData.append('folder', signData.folder);
+
+            const cloudName = signData.cloud_name;
+            const uploadRes = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, {
                 method: 'POST',
                 body: formData,
             });
 
-            if (!res.ok) {
-                const errorData = await res.json();
-                const errorMessage = errorData.details
-                    ? `${errorData.error}: ${errorData.details}`
-                    : (errorData.error || 'Upload failed');
-                throw new Error(errorMessage);
+            if (!uploadRes.ok) {
+                const errorData = await uploadRes.json();
+                throw new Error(errorData.error?.message || 'Cloudinary upload failed');
             }
 
-            const data = await res.json();
-            return data.url;
-        } catch (error) {
-            console.error('Error uploading image:', error);
-            throw error;
+            const data = await uploadRes.json();
+            return data.secure_url;
+        } catch (error: any) {
+            console.error("Upload failed:", error);
+            throw new Error(error.message || 'Upload failed');
         }
     };
 
@@ -160,23 +187,18 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         // Optimistic update
         setCommunityFeed((prev) => [newItem, ...prev]);
 
-        try {
+        const uploadPromise = async () => {
             let imageUrl = item.image;
 
             if (file) {
-                console.log('[addToFeed] Uploading image to Cloudinary...');
                 imageUrl = await uploadImage(file);
-                console.log('[addToFeed] Image uploaded:', imageUrl);
             } else if (item.image.startsWith('data:image')) {
-                console.log('[addToFeed] Uploading base64 image to Cloudinary...');
                 const blob = await (await fetch(item.image)).blob();
                 const imageFile = new File([blob], `feed-${Date.now()}.jpg`, { type: 'image/jpeg' });
                 imageUrl = await uploadImage(imageFile);
-                console.log('[addToFeed] Base64 image uploaded:', imageUrl);
             }
 
             // Save to Firestore
-            console.log('[addToFeed] Saving to Firestore...');
             const docRef = await addDoc(collection(db, "communityFeed"), {
                 userId: user?.id || 'anonymous',
                 userAvatar: user?.profileImageUrl || 'https://i.pravatar.cc/150?img=68',
@@ -187,21 +209,24 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
                 createdAt: serverTimestamp()
             });
 
-            console.log('[addToFeed] Firestore Success, ID:', docRef.id);
-
             // Update the locally added item with the real ID and URL
             setCommunityFeed((prev) =>
                 prev.map((i) =>
                     i.id === tempId ? { ...i, id: docRef.id, imageUrl: imageUrl } : i
                 )
             );
+            return "Posted to community!";
+        };
 
-        } catch (error) {
-            console.error("Failed to add to feed:", error);
-            // Rollback optimistic update
-            setCommunityFeed((prev) => prev.filter((i) => i.id !== tempId));
-            alert("Failed to upload to community feed. Please try again.");
-        }
+        toast.promise(uploadPromise(), {
+            loading: 'Sharing to community...',
+            success: (data) => data,
+            error: (err) => {
+                // Rollback optimistic update
+                setCommunityFeed((prev) => prev.filter((i) => i.id !== tempId));
+                return `Failed to post: ${err.message}`;
+            }
+        });
     };
 
     const deleteFeedItem = async (id: string) => {
@@ -380,6 +405,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         try {
             setCurrentChatId(id); // Set the active chat ID
             const res = await fetch(`/api/chats/${id}`);
+
+            if (res.status === 404) {
+                console.warn(`Chat ${id} not found, removing from list.`);
+                setSavedChats(prev => prev.filter(c => c.id !== id));
+                if (savedChats.length <= 1) {
+                    startNewChat();
+                }
+                return;
+            }
+
             const data = await res.json();
             if (data.success) {
                 const messages = data.messages.map((m: { id: string; role: 'user' | 'ai'; content: string; createdAt: string }) => ({
@@ -441,9 +476,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
                 body: JSON.stringify({ prompt, model, image }),
             });
 
-            console.log('[Generate Image] Response status:', res.status);
             const text = await res.text();
-            console.log('[Generate Image] Raw response:', text.slice(0, 200)); // Log first 200 chars
 
             let data;
             try {

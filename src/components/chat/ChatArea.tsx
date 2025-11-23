@@ -18,20 +18,31 @@ import StreamingAIResponse from './StreamingAIResponse';
 
 const ImageMessage = ({ imageUrl, onDownload, showDownload = true }: { imageUrl: string, onDownload: (url: string) => void, showDownload?: boolean }) => {
     const [isLoaded, setIsLoaded] = useState(false);
+    const [hasError, setHasError] = useState(false);
+
+    if (hasError) {
+        return (
+            <div className="mb-3 mt-1 w-64 h-64 bg-white/5 rounded-xl border border-white/10 flex flex-col items-center justify-center text-white/40 gap-2">
+                <Sparkles size={24} className="opacity-50" />
+                <span className="text-xs">Failed to load image</span>
+            </div>
+        );
+    }
 
     return (
-        <div className="mb-3 mt-1 relative group inline-block rounded-xl overflow-hidden">
+        <div className="mb-3 mt-1 relative group inline-block rounded-xl overflow-hidden bg-black/20 min-h-[100px]">
             <img
                 src={imageUrl}
                 alt="Generated"
                 className={`max-w-full rounded-xl shadow-lg border border-white/10 transition-opacity duration-500 ${isLoaded ? 'opacity-100' : 'opacity-0'}`}
                 loading="lazy"
                 onLoad={() => setIsLoaded(true)}
+                onError={() => setHasError(true)}
             />
             {isLoaded && showDownload && (
                 <button
                     onClick={() => onDownload(imageUrl)}
-                    className="absolute bottom-2 right-2 p-2 bg-black/60 hover:bg-black/80 text-white rounded-full backdrop-blur-sm transition-all border border-white/20 shadow-lg"
+                    className="absolute bottom-2 right-2 p-2 bg-black/60 hover:bg-black/80 text-white rounded-full backdrop-blur-sm transition-all border border-white/20 shadow-lg opacity-0 group-hover:opacity-100"
                     title="Download Image"
                 >
                     <Download size={20} />
@@ -77,8 +88,8 @@ export default function ChatArea() {
                             setSelectedImage(base64);
                         } else {
                             // Compress image before setting state
-                            // Limit to 1600px width and 0.7 quality to avoid payload issues
-                            const compressed = await compressImage(base64, 1600, 0.7);
+                            // Limit to 1200px width and 0.6 quality to avoid payload issues
+                            const compressed = await compressImage(base64, 1200, 0.6);
                             setSelectedImage(compressed);
                         }
                     } catch (error) {
@@ -236,7 +247,17 @@ export default function ChatArea() {
 
         } catch (error) {
             console.error("Chat error:", error);
-            addMessage('ai', "Network error, please try again.");
+            let errorMessage = "Network error, please try again.";
+
+            if (error instanceof Error) {
+                if (error.message.includes('timeout')) {
+                    errorMessage = "Request timed out. Please try again.";
+                } else if (error.message.includes('fetch')) {
+                    errorMessage = "Connection failed. Please check your internet.";
+                }
+            }
+
+            addMessage('ai', `❌ ${errorMessage}`);
         } finally {
             setIsLoading(false);
         }

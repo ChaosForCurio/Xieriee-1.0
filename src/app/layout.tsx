@@ -16,6 +16,8 @@ import { stackServerApp } from "../stack";
 
 import { Suspense } from "react";
 
+import { Toaster } from "sonner";
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -29,6 +31,7 @@ export default function RootLayout({
             <Suspense fallback={<div className="flex h-screen w-full items-center justify-center bg-[#0a0a0a] text-white">Loading...</div>}>
               <AppProvider>
                 <MainLayout>{children}</MainLayout>
+                <Toaster richColors position="top-center" theme="dark" />
               </AppProvider>
             </Suspense>
           </StackTheme>

@@ -5,6 +5,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { motion } from 'framer-motion';
 import { Download, FileText } from 'lucide-react';
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 // Re-using the components from ChatArea to ensure consistency
 // We need to pass them or re-define them. 
@@ -121,7 +122,31 @@ export default function StreamingAIResponse({ content, isNew, onDownload }: Stre
                                 th: ({ children }) => <th className="px-4 py-3 text-left text-xs font-medium text-white/70 uppercase tracking-wider">{children}</th>,
                                 td: ({ children }) => <td className="px-4 py-3 whitespace-nowrap text-sm text-white/80 border-t border-white/5">{children}</td>,
                                 blockquote: ({ children }) => <blockquote className="border-l-4 border-purple-500/50 pl-4 italic my-4 text-white/60">{children}</blockquote>,
-                                a: ({ href, children }) => <a href={href} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:text-blue-300 underline decoration-blue-400/30 hover:decoration-blue-300">{children}</a>,
+                                blockquote: ({ children }) => <blockquote className="border-l-4 border-purple-500/50 pl-4 italic my-4 text-white/60">{children}</blockquote>,
+                                a: ({ href, children }) => {
+                                    if (!href) return <span className="text-blue-400">{children}</span>;
+
+                                    let hostname = '';
+                                    try {
+                                        hostname = new URL(href).hostname;
+                                    } catch (e) {
+                                        // invalid url
+                                    }
+
+                                    return (
+                                        <a href={href} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-blue-400 hover:text-blue-300 underline decoration-blue-400/30 hover:decoration-blue-300 align-baseline">
+                                            {hostname && (
+                                                <span className="inline-block relative top-0.5 shrink-0">
+                                                    <Avatar className="h-4 w-4">
+                                                        <AvatarImage src={`https://www.google.com/s2/favicons?domain=${hostname}`} alt={hostname} />
+                                                        <AvatarFallback className="text-[8px] bg-white/10 text-white/50">{hostname.substring(0, 1).toUpperCase()}</AvatarFallback>
+                                                    </Avatar>
+                                                </span>
+                                            )}
+                                            <span>{children}</span>
+                                        </a>
+                                    );
+                                },
                             }}
                         >
                             {textContent}

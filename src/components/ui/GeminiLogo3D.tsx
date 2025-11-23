@@ -39,7 +39,11 @@ export default function GeminiLogo3D() {
 
     return (
         <div ref={containerRef} className="w-full h-full">
-            <Canvas eventSource={containerRef as React.RefObject<HTMLElement>} camera={{ position: [0, 0, 4], fov: 50 }}>
+            <Canvas
+                eventSource={containerRef as React.RefObject<HTMLElement>}
+                camera={{ position: [0, 0, 4], fov: 50 }}
+                gl={{ preserveDrawingBuffer: true, powerPreference: "default" }}
+            >
                 <ambientLight intensity={0.5} />
                 <pointLight position={[10, 10, 10]} intensity={1} color="#a855f7" />
                 <pointLight position={[-10, -10, -10]} intensity={1} color="#3b82f6" />

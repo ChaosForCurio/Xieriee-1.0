@@ -1,11 +1,42 @@
 'use client';
 /* eslint-disable @next/next/no-img-element */
 
-import React from 'react';
+import React, { useState } from 'react';
 import { Heart, Share2, MoreVertical, Sparkles, ArrowUpRight, Trash2 } from 'lucide-react';
 import { useApp } from '@/context/AppContext';
 import Toggle3D from '../ui/Toggle3D';
 import { useUser } from "@stackframe/stack";
+
+const FeedItemImage = ({ src, alt, onClick }: { src: string, alt: string, onClick: () => void }) => {
+    const [hasError, setHasError] = useState(false);
+
+    if (hasError) {
+        return (
+            <div
+                className="aspect-square relative overflow-hidden cursor-pointer bg-white/5 flex flex-col items-center justify-center text-white/20 gap-1"
+                onClick={onClick}
+            >
+                <Sparkles size={20} className="opacity-50" />
+                <span className="text-[10px]">Image unavailable</span>
+            </div>
+        );
+    }
+
+    return (
+        <div
+            className="aspect-square relative overflow-hidden cursor-pointer"
+            onClick={onClick}
+        >
+            <img
+                src={src}
+                alt={alt}
+                className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                onError={() => setHasError(true)}
+                loading="lazy"
+            />
+        </div>
+    );
+};
 
 export default function RightSidebar() {
     const { setInputPrompt, toggleRightSidebar, communityFeed, deleteFeedItem, likeFeedItem } = useApp();
@@ -37,16 +68,11 @@ export default function RightSidebar() {
                         {communityFeed.map((item) => (
                             <div key={item.id} className="group bg-white/5 rounded-lg overflow-hidden border border-white/5 hover:border-white/20 transition-all flex flex-col">
                                 {/* Image */}
-                                <div
-                                    className="aspect-square relative overflow-hidden cursor-pointer"
+                                <FeedItemImage
+                                    src={item.image}
+                                    alt={item.prompt}
                                     onClick={() => setInputPrompt(item.prompt)}
-                                >
-                                    <img
-                                        src={item.image}
-                                        alt={item.prompt}
-                                        className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
-                                    />
-                                </div>
+                                />
 
                                 {/* Content */}
                                 <div className="p-2 flex flex-col gap-2">
