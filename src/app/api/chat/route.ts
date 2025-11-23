@@ -222,6 +222,11 @@ export async function POST(request: Request) {
                 markerIndex = rawResponse.indexOf(marker);
             }
 
+            if (markerIndex === -1) {
+                marker = '"web_search"';
+                markerIndex = rawResponse.indexOf(marker);
+            }
+
             if (markerIndex !== -1) {
                 for (let i = markerIndex; i >= 0; i--) {
                     if (rawResponse[i] === '{') {
@@ -265,6 +270,62 @@ export async function POST(request: Request) {
 
                                     finalResponse = (cleanBefore + '\n' + cleanAfter).trim();
                                     break;
+                                }
+
+                                if (parsed.action === 'web_search' && parsed.search_query) {
+                                    console.log("Auto Search Triggered:", parsed.search_query);
+                                    const searchQuery = parsed.search_query;
+
+                                    // Perform the search
+                                    let searchContext = "";
+                                    try {
+                                        const searchResults = await performWebSearch(searchQuery);
+                                        searchContext = `WEB SEARCH RESULTS for "${searchQuery}":\n${searchResults}\n\n`;
+                                    } catch (searchError) {
+                                        console.error("Auto Search Failed:", searchError);
+                                        searchContext = "SYSTEM NOTE: Web search failed. Inform the user that you could not retrieve live data.\n\n";
+                                    }
+
+                                    // Construct the follow-up prompt for the final answer
+                                    const followUpPrompt = `
+SYSTEM: You requested a web search for "${searchQuery}".
+Here are the results:
+${searchContext}
+
+INSTRUCTIONS:
+Use the results above to answer the user's original request.
+You MUST follow this exact output format:
+
+🔎 **Real-Time Web Result**
+(A short, accurate summary of the findings.)
+
+📌 **Key Facts**
+•
+•
+•
+
+📰 **Recent Updates**
+•
+
+🌐 **Sources**
+[List all URLs returned by Serper]
+
+Rules:
+- Do NOT hallucinate.
+- Use ONLY information from Serper.
+- If Serper does not provide data → say “Not available”.
+`;
+
+                                    // Re-call Gemini with the search context
+                                    // We append this to the conversation temporarily for this turn
+                                    const finalAnswer = await getGeminiResponse(followUpPrompt, undefined, context, clientHistory);
+
+                                    // Save the final AI response
+                                    await saveMessage(userId, chatId, 'ai', finalAnswer);
+
+                                    return NextResponse.json({
+                                        response: finalAnswer
+                                    });
                                 }
 
                                 if ((parsed.action === 'generate_image' && parsed.freepik_prompt) || parsed.freepik_prompt) {

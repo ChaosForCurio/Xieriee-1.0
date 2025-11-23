@@ -70,9 +70,42 @@ export default function ChatArea() {
     const { inputPrompt, setInputPrompt, chatHistory, addMessage, toggleLeftSidebar, toggleRightSidebar, isLeftSidebarOpen, isRightSidebarOpen, generateImage, isGeneratingImage, currentChatId } = useApp();
     const user = useUser();
     const [isLoading, setIsLoading] = useState(false);
+    const [avatarMode, setAvatarMode] = useState<'default' | 'searching' | 'creative'>('default');
     const [selectedImage, setSelectedImage] = useState<string | null>(null);
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
+
+    // Helper to check if a prompt likely triggers a web search (matching backend logic)
+    const isSearchPrompt = (text: string) => {
+        const lower = text.toLowerCase();
+        const keywords = [
+            "search", "find", "lookup", "check", "latest",
+            "current", "recent", "news", "update",
+            "@web", "trending", "official",
+            "who is", "what is", "pricing", "free tier",
+            "vs", "compare"
+        ];
+        return keywords.some(k => lower.includes(k));
+    };
+    const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+    // Dynamic Textarea Resizing
+    useEffect(() => {
+        const textarea = textareaRef.current;
+        if (textarea) {
+            // Reset height to auto to get the correct scrollHeight for shrinking
+            textarea.style.height = 'auto';
+
+            // Calculate new height (max 200px)
+            const newHeight = Math.min(textarea.scrollHeight, 200);
+
+            // Apply new height
+            textarea.style.height = `${newHeight}px`;
+
+            // Toggle scrollbar based on content
+            textarea.style.overflowY = textarea.scrollHeight > 200 ? 'auto' : 'hidden';
+        }
+    }, [inputPrompt]);
 
     const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
@@ -119,9 +152,14 @@ export default function ChatArea() {
                 // Replace the base64 string with a placeholder
                 // Regex to match markdown image syntax with base64: ![...](data:...)
                 // or just the raw data string if it's somehow loose
-                let cleanContent = msg.content.replace(/\!\[.*?\]\(data:.*?\)/g, '[Image Attachment]');
-                cleanContent = cleanContent.replace(/\[PDF Attachment\]\(data:.*?\)/g, '[PDF Attachment]');
-                return { ...msg, content: cleanContent };
+                // let cleanContent = msg.content.replace(/\!\[.*?\]\(data:.*?\)/g, '[Image Attachment]');
+                // cleanContent = cleanContent.replace(/\[PDF Attachment\]\(data:.*?\)/g, '[PDF Attachment]');
+                // return { ...msg, content: cleanContent };
+                // Actually, for history sent to Gemini, we might want to keep it if Gemini supports it, 
+                // but usually we send images separately. 
+                // For now, let's just keep the text part if possible or placeholder.
+                // Simplified:
+                return { ...msg, content: msg.content.split('data:')[0] + '[Attachment]' };
             }
             return msg;
         });
@@ -143,6 +181,11 @@ export default function ChatArea() {
 
         setInputPrompt(''); // Clear input immediately
         setSelectedImage(null); // Clear image immediately
+
+        // Reset textarea height immediately
+        if (textareaRef.current) {
+            textareaRef.current.style.height = 'auto';
+        }
 
         // Use the compressed base64 image directly (no Cloudinary upload)
         // It will be persisted in localStorage automatically
@@ -194,6 +237,15 @@ export default function ChatArea() {
 
         addMessage('user', userContent);
         setIsLoading(true);
+
+        // Determine avatar mode
+        if (prompt.toLowerCase().startsWith('@image ') || finalImageUrl) {
+            setAvatarMode('creative');
+        } else if (isSearchPrompt(prompt)) {
+            setAvatarMode('searching');
+        } else {
+            setAvatarMode('default');
+        }
 
         try {
             // Sanitize history to remove large base64 strings
@@ -260,6 +312,7 @@ export default function ChatArea() {
             addMessage('ai', `❌ ${errorMessage}`);
         } finally {
             setIsLoading(false);
+            setAvatarMode('default');
         }
     };
 
@@ -466,7 +519,7 @@ export default function ChatArea() {
                                         />
                                         {/* Desktop Avatar */}
                                         <div className="hidden md:block w-full h-full">
-                                            <GeminiLogo3D />
+                                            <GeminiLogo3D mode="creative" />
                                         </div>
                                     </div>
                                     <div className="max-w-[80%] md:max-w-[60%] w-full">
@@ -481,7 +534,7 @@ export default function ChatArea() {
                                     className="flex gap-4 justify-start"
                                 >
                                     <div className="w-10 h-10 rounded-full overflow-hidden shrink-0 mt-1 bg-black/20 border border-white/10">
-                                        <GeminiLogo3D />
+                                        <GeminiLogo3D mode={avatarMode} />
                                     </div>
                                     <div className="max-w-[80%] md:max-w-[70%] p-4 rounded-2xl bg-transparent text-gray-100 rounded-tl-sm">
                                         <MessageSkeleton />
@@ -531,6 +584,7 @@ export default function ChatArea() {
                     </AnimatePresence>
 
                     <textarea
+                        ref={textareaRef}
                         value={inputPrompt}
                         onChange={(e) => setInputPrompt(e.target.value)}
                         onKeyDown={handleKeyDown}
