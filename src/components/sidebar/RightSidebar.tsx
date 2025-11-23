@@ -122,7 +122,7 @@ export default function RightSidebar() {
                                             >
                                                 <Heart
                                                     size={12}
-                                                    className={`transition-all duration-300 ${item.likes > 0 ? 'fill-red-500 text-red-500' : 'group-hover/like:scale-110'}`}
+                                                    className={`transition-all duration-300 ${user && item.likedBy?.includes(user.id) ? 'fill-red-500 text-red-500' : 'group-hover/like:scale-110'}`}
                                                 />
                                                 <span className="text-[10px]">{item.likes}</span>
                                             </button>

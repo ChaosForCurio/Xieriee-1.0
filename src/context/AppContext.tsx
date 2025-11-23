@@ -29,6 +29,7 @@ export interface FeedItem {
     avatar: string;
     prompt: string;
     likes: number;
+    likedBy: string[]; // Array of user IDs who liked the post
     image: string;
     createdAt?: any;
 }
@@ -92,6 +93,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
                     avatar: doc.data().userAvatar || 'https://i.pravatar.cc/150?img=68',
                     prompt: doc.data().prompt || '',
                     likes: doc.data().likes || 0,
+                    likedBy: doc.data().likedBy || [],
                     image: doc.data().imageUrl,
                     createdAt: doc.data().createdAt
                 }));
@@ -181,6 +183,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             user: user?.displayName || 'Anonymous',
             avatar: user?.profileImageUrl || 'https://i.pravatar.cc/150?img=68',
             likes: 0,
+            likedBy: [],
+            image: item.image,
             createdAt: new Date()
         };
 
@@ -206,6 +210,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
                 imageUrl,
                 prompt: item.prompt,
                 likes: 0,
+                likedBy: [],
                 createdAt: serverTimestamp()
             });
 
@@ -242,19 +247,52 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     };
 
     const likeFeedItem = async (id: string) => {
+        if (!user) {
+            toast.error("Please sign in to like posts");
+            return;
+        }
+
+        const userId = user.id;
+        const item = communityFeed.find(i => i.id === id);
+        if (!item) return;
+
+        const hasLiked = item.likedBy.includes(userId);
+
         // Optimistic update
-        setCommunityFeed(prev => prev.map(item =>
-            item.id === id ? { ...item, likes: item.likes + 1 } : item
-        ));
+        setCommunityFeed(prev => prev.map(item => {
+            if (item.id === id) {
+                return {
+                    ...item,
+                    likes: hasLiked ? item.likes - 1 : item.likes + 1,
+                    likedBy: hasLiked
+                        ? item.likedBy.filter(uid => uid !== userId)
+                        : [...item.likedBy, userId]
+                };
+            }
+            return item;
+        }));
 
         try {
-            await fetch(`/api/feed/${id}/like`, { method: 'POST' });
+            await fetch(`/api/feed/${id}/like`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ userId })
+            });
         } catch (error) {
             console.error("Failed to like feed item:", error);
             // Revert
-            setCommunityFeed(prev => prev.map(item =>
-                item.id === id ? { ...item, likes: item.likes - 1 } : item
-            ));
+            setCommunityFeed(prev => prev.map(item => {
+                if (item.id === id) {
+                    return {
+                        ...item,
+                        likes: hasLiked ? item.likes + 1 : item.likes - 1,
+                        likedBy: hasLiked
+                            ? [...item.likedBy, userId]
+                            : item.likedBy.filter(uid => uid !== userId)
+                    };
+                }
+                return item;
+            }));
         }
     };
 
@@ -441,30 +479,36 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     };
 
     const clearHistory = async () => {
-        // If the current chat is saved, delete it from the backend
-        if (savedChats.some(c => c.id === currentChatId)) {
+        const chatIdToDelete = currentChatId;
+
+        // 1. Immediate UI updates
+        setChatHistory([]);
+
+        // Start a fresh session ID
+        const newId = `chat-${Date.now()}`;
+        setCurrentChatId(newId);
+
+        // Optimistically update savedChats: remove the deleted chat (if saved) and add the new empty one
+        setSavedChats(prev => {
+            const filtered = prev.filter(c => c.id !== chatIdToDelete);
+            const newChatSession: SavedChat = {
+                id: newId,
+                title: 'New Chat',
+                date: new Date().toLocaleDateString(),
+                messages: []
+            };
+            return [newChatSession, ...filtered];
+        });
+
+        // 2. Background API call to delete the chat if it was saved
+        // We check the *current* savedChats state (captured in closure) or just rely on the ID check
+        if (savedChats.some(c => c.id === chatIdToDelete)) {
             try {
-                await fetch(`/api/chats/${currentChatId}`, { method: 'DELETE' });
-                // Remove from savedChats
-                setSavedChats(prev => prev.filter(c => c.id !== currentChatId));
+                await fetch(`/api/chats/${chatIdToDelete}`, { method: 'DELETE' });
             } catch (error) {
                 console.error("Failed to delete chat history:", error);
             }
         }
-
-        setChatHistory([]);
-        // Start a fresh session ID to ensure context is cleared on backend too
-        const newId = `chat-${Date.now()}`;
-        setCurrentChatId(newId);
-
-        // Add new empty chat to savedChats so it appears in sidebar immediately
-        const newChatSession: SavedChat = {
-            id: newId,
-            title: 'New Chat',
-            date: new Date().toLocaleDateString(),
-            messages: []
-        };
-        setSavedChats(prev => [newChatSession, ...prev]);
     };
 
     const generateImage = async (prompt: string, model: string = 'flux', image?: string): Promise<string | null> => {

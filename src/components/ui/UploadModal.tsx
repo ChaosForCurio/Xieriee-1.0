@@ -36,7 +36,10 @@ export default function UploadModal() {
             const contentType = res.headers.get("content-type");
             if (contentType && contentType.indexOf("application/json") !== -1) {
                 const data = await res.json();
-                if (data.response) {
+                if (data.error) {
+                    console.error("API Error:", data.error);
+                    alert(`AI Error: ${data.error}`);
+                } else if (data.response) {
                     setPrompt(data.response);
                 } else {
                     console.warn("No response field in data:", data);

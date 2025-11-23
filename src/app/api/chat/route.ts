@@ -18,11 +18,28 @@ export async function POST(request: Request) {
         }
         const userId = user?.id || 'anonymous'; // Fallback for now, but ideally require auth
 
-        const { prompt, image, messages, chatId: providedChatId } = await request.json();
-        const chatId = providedChatId || 'default-chat';
+        const { prompt, image, messages, chatId, imageContext } = await request.json();
+        const currentChatId = chatId || 'default-chat';
 
         if (!prompt && !image) {
             return NextResponse.json({ error: 'Prompt or image is required' }, { status: 400 });
+        }
+
+        // Construct the full prompt with context
+        let finalPrompt = prompt;
+
+        // Inject Image Context if available
+        if (imageContext) {
+            console.log("Server received imageContext:", imageContext);
+            finalPrompt = `[CONTEXT: Last Generated Image Details]
+Prompt: ${imageContext.last_prompt}
+Params: ${JSON.stringify(imageContext.last_params)}
+URL: ${imageContext.last_image_url}
+--------------------------------------------------
+User Request: ${prompt}`;
+            console.log("Constructed Final Prompt with Context:", finalPrompt);
+        } else {
+            console.log("No imageContext received on server.");
         }
 
         // 1. Rate Limit
@@ -57,7 +74,6 @@ export async function POST(request: Request) {
         let context = "";
 
         // Web Search Logic
-        let finalPrompt = prompt;
         if (prompt && prompt.trim().toLowerCase().startsWith('@web')) {
             console.log("Step 3.1: Web Search Triggered");
             const searchQuery = prompt.replace(/@web/i, '').trim();

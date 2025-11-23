@@ -59,3 +59,43 @@ export async function getGroqResponse(
         throw error;
     }
 }
+
+export async function analyzeImageWithGroq(base64Image: string, prompt: string) {
+    if (!groq) {
+        throw new Error("Groq API key is missing.");
+    }
+
+    try {
+        const chatCompletion = await groq.chat.completions.create({
+            "messages": [
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": prompt
+                        },
+                        {
+                            "type": "image_url",
+                            "image_url": {
+                                "url": base64Image // Expecting full data URL (data:image/jpeg;base64,...)
+                            }
+                        }
+                    ]
+                }
+            ],
+            "model": "meta-llama/llama-4-scout-17b-16e-instruct",
+            "temperature": 0.5,
+            "max_tokens": 1024,
+            "top_p": 1,
+            "stream": false,
+            "stop": null
+        });
+
+        return chatCompletion.choices[0]?.message?.content || "";
+    } catch (error) {
+        console.error("Groq API Error:", error);
+        throw error;
+    }
+}
+

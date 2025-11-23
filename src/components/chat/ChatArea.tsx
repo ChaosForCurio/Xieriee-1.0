@@ -71,6 +71,7 @@ export default function ChatArea() {
     const user = useUser();
     const [isLoading, setIsLoading] = useState(false);
     const [avatarMode, setAvatarMode] = useState<'default' | 'searching' | 'creative'>('default');
+    const [lastImageContext, setLastImageContext] = useState<any>(null);
     const [selectedImage, setSelectedImage] = useState<string | null>(null);
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -88,6 +89,13 @@ export default function ChatArea() {
         return keywords.some(k => lower.includes(k));
     };
     const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+    // Reset image context when chat history is cleared
+    useEffect(() => {
+        if (chatHistory.length === 0) {
+            setLastImageContext(null);
+        }
+    }, [chatHistory]);
 
     // Dynamic Textarea Resizing
     useEffect(() => {
@@ -251,10 +259,17 @@ export default function ChatArea() {
             // Sanitize history to remove large base64 strings
             const sanitizedHistory = sanitizeHistory(chatHistory);
 
+            console.log("Sending request to /api/chat. LastImageContext:", lastImageContext);
             const res = await fetch('/api/chat', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ prompt, image: finalImageUrl, messages: sanitizedHistory, chatId: currentChatId }),
+                body: JSON.stringify({
+                    prompt,
+                    image: finalImageUrl,
+                    messages: sanitizedHistory,
+                    chatId: currentChatId,
+                    imageContext: lastImageContext // Pass the last image context
+                }),
             });
 
             const contentType = res.headers.get("content-type");
@@ -272,15 +287,52 @@ export default function ChatArea() {
                 return;
             }
 
-            if (data.response) {
+            // Handle New Full Stack Image Gen JSON Response
+            console.log("API Response Data:", data);
+            if (data.backend && data.backend.action === 'generate_image') {
+                console.log("Action: generate_image triggered");
+                // 1. Update Memory
+                if (data.memory_update) {
+                    console.log("Updating Memory:", data.memory_update);
+                    setLastImageContext(data.memory_update);
+                }
+
+                // 2. Show Explanation
+                if (data.explanation) {
+                    addMessage('ai', data.explanation);
+                }
+
+                // 3. Trigger Image Generation
+                try {
+                    setAvatarMode('creative'); // Ensure creative avatar is active
+                    const imageUrl = await generateImage(data.backend.prompt, 'flux', finalImageUrl || undefined);
+
+                    if (imageUrl) {
+                        addMessage('ai', `![Generated Image](${imageUrl})`);
+
+                        // Update memory with the actual generated URL
+                        if (data.memory_update) {
+                            setLastImageContext({
+                                ...data.memory_update,
+                                last_image_url: imageUrl
+                            });
+                        }
+                    } else {
+                        addMessage('ai', '❌ Image generation failed. Please check the console for details.');
+                    }
+                } catch (error) {
+                    console.error('Auto-image generation error:', error);
+                    addMessage('ai', `❌ Error generating image: ${error instanceof Error ? error.message : 'Unknown error'} `);
+                }
+            } else if (data.response) {
                 addMessage('ai', data.response);
             } else if (!data.action) {
                 // Fallback for empty Gemini response (only if no action)
                 addMessage('ai', "Sorry, I couldn't get a response from Gemini. Please try again.");
             }
 
-            // Handle Image Generation Action from AI
-            if (data.action === 'generate_image' && data.freepik_prompt) {
+            // Handle Legacy Image Generation Action (Keep for backward compatibility if needed)
+            if (data.action === 'generate_image' && data.freepik_prompt && !data.backend) {
                 try {
                     // Pass the Cloudinary URL (finalImageUrl) to generateImage if available, 
                     // effectively doing Image-to-Image generation if the user provided an image.

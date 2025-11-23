@@ -7,7 +7,7 @@ import { AppProvider } from "@/context/AppContext";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "Xieriee AI",
+  title: "From Heaven To Horizon",
   description: "Advanced AI Chat Interface",
 };
 

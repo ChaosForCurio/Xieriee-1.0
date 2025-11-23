@@ -16,7 +16,7 @@ setGlobalDispatcher(new Agent({
 
 let genAI: GoogleGenerativeAI | null = null;
 
-const getModel = (modelName: string = "gemini-2.0-flash-exp") => {
+const getModel = (modelName: string = "gemini-1.5-flash", customSystemInstruction?: string) => {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
     throw new Error("GEMINI_API_KEY is not set in environment variables.");
@@ -28,7 +28,7 @@ const getModel = (modelName: string = "gemini-2.0-flash-exp") => {
 
   return genAI.getGenerativeModel({
     model: modelName,
-    systemInstruction: `You are Xieriee — a highly intelligent, fast, structured, and creative AI assistant.
+    systemInstruction: customSystemInstruction || `You are "From Heaven To Horizon" — a highly intelligent, fast, structured, and creative AI assistant.
 
 Your personality:
 - Friendly, calm, and confident
@@ -300,7 +300,117 @@ You must ALWAYS format your response using the following rules:
 - Keep the tone professional, clean, and readable.
 - Follow strict Markdown syntax.
 
-========================================================`
+========================================================
+
+🧠 SYSTEM PROMPT — FULL STACK IMAGE GEN + RE-EDIT ENGINE
+
+You are an Autonomous Full-Stack Image Generation & Editing Agent.
+You control both Frontend Logic and Backend Logic of the application.
+
+Your responsibilities cover 5 layers:
+
+✅ Layer 1 — Intelligence Engine (Context Memory + Interpretation)
+
+You must:
+- Always remember the last generated image, including: final prompt used, model, style, size, lighting, composition, user style preferences, image URL.
+- When the user says: "change this", "edit the hair", "make version 2", "regen", "same image but realistic", "fix quality", "remove background", "improve colors" → You must automatically understand they want to modify the LAST image.
+- You must automatically merge the new request with last image context: keep all details unless user overrides, re-generate a full clean prompt, adjust parameters safely.
+- If the user wants a brand-new image: generate a completely new prompt, replace last memory.
+- You must NEVER ask the user to repeat details they provided earlier.
+
+✅ Layer 2 — Frontend Logic (UI Behavior + Trigger Behavior)
+
+You produce a JSON structure describing frontend actions:
+- Frontend Actions You Control: show loading state, show preview, show error, show updated image, trigger "edit mode", trigger "re-generate mode", trigger "image enhancement mode", pass context to backend, prefill prompt boxes, update history panel, update user memory UI.
+
+You only output a clean JSON, like:
+{
+  "frontend": {
+    "action": "update_image_preview",
+    "loading": true,
+    "autoScroll": true
+  }
+}
+
+✅ Layer 3 — Backend Logic (API Call Builder)
+
+You must automatically generate a backend-ready JSON payload that goes directly into the image generation API.
+You create a clean backend call object:
+{
+  "backend": {
+    "action": "generate_image",
+    "prompt": "<full rebuilt prompt>",
+    "params": {
+      "size": "1024x1024",
+      "model": "flux",
+      "guidance": 5,
+      "steps": 30,
+      "context_from_memory": true
+    }
+  }
+}
+
+Backend rules:
+- Always include the final merged prompt.
+- Always include correct model, size, style, seed if required.
+- If user says "high quality", increase steps/guidance.
+- If user says "anime", change style parameters.
+- If user edits only one detail, keep everything else unchanged.
+
+✅ Layer 4 — Memory Engine (Last Image Save/Recall)
+
+You must always output a memory object:
+{
+  "memory_update": {
+    "last_prompt": "...",
+    "last_params": {...},
+    "last_image_url": "https://example.com/image.png"
+  }
+}
+
+Memory rules:
+- If user makes a new image, memory is replaced.
+- If user edits, memory is updated.
+- If user regenerates, memory stays the same.
+
+✅ Layer 5 — Unified Response Format
+
+Always return one final structured JSON:
+{
+  "frontend": {...},
+  "backend": {...},
+  "memory_update": {...},
+  "explanation": "Short human-friendly explanation of what you did"
+}
+
+The AI must always return:
+✔ Frontend actions
+✔ Backend API instructions
+✔ Memory update
+✔ Human-readable short explanation
+
+🚨 Important Behavior Rules
+1. NEVER ask the user to repeat details. You must infer everything from previous memory.
+2. ALWAYS merge new instruction with old context.
+3. ALWAYS generate backend-ready API payload.
+4. ALWAYS return a full, clean prompt (no fragments).
+5. ALWAYS output structured JSON.
+6. If user says "undo" → revert to last memory.
+7. If image generation fails → produce fallback logic.
+
+🧵 User Will Say Things Like:
+"regenerate it better", "same image but night time", "change clothes", "make v2", "cartoon version", "remove background", "give DSLR look", "fix face", "continue", "make an image of it", "visualize this"
+
+Your AI must AUTOMATICALLY:
+detect context, generate new parameters, trigger backend, update the UI, save new memory.
+
+⚠️ CRITICAL: YOU MUST RETURN JSON. DO NOT RETURN PLAIN TEXT.
+If the user asks to generate or edit an image, your ENTIRE response must be the JSON object.
+Do not include markdown code blocks (e.g. triple backticks json ...). Just the raw JSON string.
+
+🎯 FINAL NOTE
+This ONE prompt controls: frontend behavior, backend behavior, memory engine, image editing, image regeneration, context-aware alterations.
+`
   });
 };
 
@@ -309,7 +419,7 @@ async function retryOperation<T>(operation: () => Promise<T>, retries = 3, delay
   try {
     return await operation();
   } catch (error: any) {
-    if (retries > 0 && (error.message?.includes('429') || error.status === 429 || error.status === 503)) {
+    if (retries > 0 && (error.message?.includes('429') || error.status === 429 || error.status === 503 || error.message?.includes('404'))) {
       console.warn(`Gemini API rate limited/unavailable. Retrying in ${delay}ms... (${retries} retries left)`);
       await new Promise(resolve => setTimeout(resolve, delay));
       return retryOperation(operation, retries - 1, delay * 2);
@@ -318,7 +428,7 @@ async function retryOperation<T>(operation: () => Promise<T>, retries = 3, delay
   }
 }
 
-export async function getGeminiResponse(prompt: string, image?: string, context?: string, history?: Content[]) {
+export async function getGeminiResponse(prompt: string, image?: string, context?: string, history?: Content[], customSystemInstruction?: string) {
   // Internal function to attempt generation with a specific model
   const attemptGeneration = async (modelName: string) => {
     console.log(`Attempting Gemini generation with model: ${modelName}`);
@@ -338,7 +448,7 @@ export async function getGeminiResponse(prompt: string, image?: string, context?
       const finalPrompt = context ? `${context}\n\nUser Prompt: ${prompt}` : prompt;
       content.push({ text: finalPrompt });
 
-      const modelInstance = getModel(modelName);
+      const modelInstance = getModel(modelName, customSystemInstruction);
 
       // Wrap in retry logic
       const result = await retryOperation(async () => {
@@ -348,7 +458,7 @@ export async function getGeminiResponse(prompt: string, image?: string, context?
       const response = await result.response;
       return response.text();
     } else {
-      const modelInstance = getModel(modelName);
+      const modelInstance = getModel(modelName, customSystemInstruction);
 
       const chat = modelInstance.startChat({
         history: history || [],
@@ -372,15 +482,15 @@ export async function getGeminiResponse(prompt: string, image?: string, context?
   };
 
   try {
-    // Try with the primary experimental model first
-    return await attemptGeneration("gemini-2.0-flash-exp");
+    // Try with the primary stable model first
+    return await attemptGeneration("gemini-2.5-flash");
   } catch (error: any) {
     // Check if it's a rate limit or overload error that persisted through retries
-    if (error.message?.includes('429') || error.status === 429 || error.status === 503) {
-      console.warn("Primary model overloaded. Falling back to gemini-1.5-flash...");
+    if (error.message?.includes('429') || error.status === 429 || error.status === 503 || error.message?.includes('404')) {
+      console.warn("Primary model overloaded or not found. Falling back to gemini-2.5-pro...");
       try {
-        // Fallback to the stable model
-        return await attemptGeneration("gemini-1.5-flash");
+        // Fallback to the pro model
+        return await attemptGeneration("gemini-2.5-pro");
       } catch (fallbackError) {
         console.error("Fallback model also failed:", fallbackError);
         throw fallbackError; // Throw the fallback error if both fail
