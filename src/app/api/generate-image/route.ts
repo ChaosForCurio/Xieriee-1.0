@@ -1,10 +1,23 @@
 import { NextResponse } from 'next/server';
+import { stackServerApp } from '@/stack';
+import { isRateLimited } from '@/lib/db-actions';
 
 export const maxDuration = 300; // 5 minutes
 
 export async function POST(request: Request) {
     console.log('API Route hit: /api/generate-image');
     try {
+        // 0. Auth & Rate Limit Check
+        const user = await stackServerApp.getUser();
+        if (!user) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
+
+        const isLimited = await isRateLimited(user.id);
+        if (isLimited) {
+            return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 });
+        }
+
         const { prompt, image } = await request.json();
 
         if (!prompt) {

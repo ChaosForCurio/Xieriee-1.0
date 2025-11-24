@@ -1,11 +1,24 @@
 import { NextResponse } from 'next/server';
 import { v2 as cloudinary } from 'cloudinary';
+import { stackServerApp } from '@/stack';
+import { isRateLimited } from '@/lib/db-actions';
 
 export const maxDuration = 300; // 5 minutes timeout for uploads
 
 export async function POST(request: Request) {
   try {
     console.log("Upload API: Request received");
+
+    // 0. Auth & Rate Limit Check
+    const user = await stackServerApp.getUser();
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const isLimited = await isRateLimited(user.id);
+    if (isLimited) {
+      return NextResponse.json({ error: 'Rate limit exceeded' }, { status: 429 });
+    }
 
     // 1. Verify Environment Variables
     const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME || process.env.CLOUDINARY_CLOUD_NAME;
