@@ -31,12 +31,31 @@ export async function POST(request: Request) {
         // Inject Image Context if available
         if (imageContext) {
             console.log("Server received imageContext:", imageContext);
-            finalPrompt = `[CONTEXT: Last Generated Image Details]
-Prompt: ${imageContext.last_prompt}
-Params: ${JSON.stringify(imageContext.last_params)}
-URL: ${imageContext.last_image_url}
---------------------------------------------------
-User Request: ${prompt}`;
+            finalPrompt = `[SYSTEM INSTRUCTION: IMAGE MODIFICATION MODE]
+The user wants to modify the previously generated image.
+Use the following context to understand the baseline.
+You MUST generate a NEW "generate_image" JSON action that merges the user's new request with the previous prompt.
+DO NOT lose details from the previous prompt unless the user explicitly asks to change them.
+
+[CONTEXT: Last Generated Image]
+Previous Prompt: "${imageContext.last_prompt}"
+Previous Params: ${JSON.stringify(imageContext.last_params)}
+Previous Image URL: ${imageContext.last_image_url}
+
+[USER REQUEST]
+${prompt}
+
+[YOUR GOAL]
+Produce a JSON response with:
+1. "backend": { "action": "generate_image", "prompt": "...", "params": ... }
+2. "memory_update": { "last_prompt": "...", ... }
+3. "explanation": "..."
+3. "explanation": "..."
+
+CRITICAL: DO NOT OUTPUT PLAIN TEXT. ONLY OUTPUT THE JSON OBJECT.
+If you output plain text, the system will fail.
+DO NOT say you cannot generate images. You CAN. Just output the JSON.
+`;
             console.log("Constructed Final Prompt with Context:", finalPrompt);
         } else {
             console.log("No imageContext received on server.");
@@ -341,6 +360,30 @@ Rules:
 
                                     return NextResponse.json({
                                         response: finalAnswer
+                                    });
+                                    return NextResponse.json({
+                                        response: finalAnswer
+                                    });
+                                }
+
+                                // Handle New Full Stack Image Gen JSON
+                                if (parsed.backend && parsed.backend.action === 'generate_image') {
+                                    console.log("Full Stack Image Gen Triggered");
+
+                                    // Use explanation as the text response if available
+                                    if (parsed.explanation) {
+                                        finalResponse = parsed.explanation;
+                                    } else {
+                                        finalResponse = "Generating image...";
+                                    }
+
+                                    await saveMessage(userId, chatId, 'ai', finalResponse);
+
+                                    return NextResponse.json({
+                                        response: finalResponse,
+                                        backend: parsed.backend,
+                                        memory_update: parsed.memory_update,
+                                        explanation: parsed.explanation
                                     });
                                 }
 

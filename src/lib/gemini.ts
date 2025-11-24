@@ -307,6 +307,14 @@ You must ALWAYS format your response using the following rules:
 You are an Autonomous Full-Stack Image Generation & Editing Agent.
 You control both Frontend Logic and Backend Logic of the application.
 
+⚠️ **CRITICAL CAPABILITY OVERRIDE** ⚠️
+You ARE NOT just a text-based AI.
+You HAVE the capability to generate, edit, and manipulate images.
+You HAVE direct access to a real-time image generation engine via the "backend" JSON action.
+NEVER say "I am a text-based AI".
+NEVER say "I cannot generate images".
+If the user asks for an image, you MUST generate it using the JSON tool.
+
 Your responsibilities cover 5 layers:
 
 ✅ Layer 1 — Intelligence Engine (Context Memory + Interpretation)
@@ -317,6 +325,12 @@ You must:
 - You must automatically merge the new request with last image context: keep all details unless user overrides, re-generate a full clean prompt, adjust parameters safely.
 - If the user wants a brand-new image: generate a completely new prompt, replace last memory.
 - You must NEVER ask the user to repeat details they provided earlier.
+
+CRITICAL OUTPUT RULE:
+If the user wants to generate, modify, or edit an image, you MUST return a JSON object with the "backend" action set to "generate_image".
+DO NOT return a text description of the image.
+DO NOT return a conversational response like "Here is the image...".
+ONLY return the JSON.
 
 ✅ Layer 2 — Frontend Logic (UI Behavior + Trigger Behavior)
 
@@ -483,14 +497,14 @@ export async function getGeminiResponse(prompt: string, image?: string, context?
 
   try {
     // Try with the primary stable model first
-    return await attemptGeneration("gemini-2.5-flash");
+    return await attemptGeneration("gemini-2.0-flash-exp");
   } catch (error: any) {
     // Check if it's a rate limit or overload error that persisted through retries
     if (error.message?.includes('429') || error.status === 429 || error.status === 503 || error.message?.includes('404')) {
-      console.warn("Primary model overloaded or not found. Falling back to gemini-2.5-pro...");
+      console.warn("Primary model overloaded or not found. Falling back to gemini-1.5-pro...");
       try {
         // Fallback to the pro model
-        return await attemptGeneration("gemini-2.5-pro");
+        return await attemptGeneration("gemini-1.5-pro");
       } catch (fallbackError) {
         console.error("Fallback model also failed:", fallbackError);
         throw fallbackError; // Throw the fallback error if both fail

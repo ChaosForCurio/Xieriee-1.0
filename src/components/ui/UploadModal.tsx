@@ -62,35 +62,99 @@ export default function UploadModal() {
         }
     };
 
+    const [isDragging, setIsDragging] = useState(false);
+    const [originalFile, setOriginalFile] = useState<File | null>(null);
+    const [resizeOption, setResizeOption] = useState<'original' | 'large' | 'medium' | 'small'>('large');
+    const [imageDimensions, setImageDimensions] = useState<{ width: number; height: number; ratio: string } | null>(null);
+
+    const getGCD = (a: number, b: number): number => {
+        return b === 0 ? a : getGCD(b, a % b);
+    };
+
+    const processFile = async (file: File, option: 'original' | 'large' | 'medium' | 'small' = resizeOption) => {
+        if (file.type === 'image/png' || file.type === 'image/jpeg' || file.type === 'image/jpg') {
+            try {
+                let maxWidthOrHeight = 1920;
+                switch (option) {
+                    case 'original': maxWidthOrHeight = 10000; break; // Use a large number for original
+                    case 'large': maxWidthOrHeight = 1920; break;
+                    case 'medium': maxWidthOrHeight = 1200; break;
+                    case 'small': maxWidthOrHeight = 800; break;
+                }
+
+                // Compress image before processing
+                const options = {
+                    maxSizeMB: 1,
+                    maxWidthOrHeight: maxWidthOrHeight,
+                    useWebWorker: true,
+                };
+
+                const compressedFile = await imageCompression(file, options);
+                setFileToUpload(compressedFile);
+
+                const reader = new FileReader();
+                reader.onloadend = () => {
+                    const result = reader.result as string;
+                    setSelectedImage(result);
+
+                    // Calculate dimensions and ratio
+                    const img = new Image();
+                    img.onload = () => {
+                        const gcd = getGCD(img.width, img.height);
+                        const ratio = `${img.width / gcd}:${img.height / gcd}`;
+                        setImageDimensions({
+                            width: img.width,
+                            height: img.height,
+                            ratio: ratio
+                        });
+                    };
+                    img.src = result;
+
+                    // Only analyze if it's a new file (not just a resize of the same file)
+                    if (!prompt) analyzeImage(result);
+                };
+                reader.readAsDataURL(compressedFile);
+            } catch (error) {
+                console.error("Compression failed:", error);
+                alert("Failed to process image. Please try a different one.");
+            }
+        } else {
+            alert('Please upload a PNG or JPG image.');
+        }
+    };
+
+    const handleResizeChange = async (option: 'original' | 'large' | 'medium' | 'small') => {
+        setResizeOption(option);
+        if (originalFile) {
+            await processFile(originalFile, option);
+        }
+    };
+
     const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (file) {
-            if (file.type === 'image/png' || file.type === 'image/jpeg' || file.type === 'image/jpg') {
-                try {
-                    // Compress image before processing
-                    const options = {
-                        maxSizeMB: 0.5, // Compress to ~500KB for analysis
-                        maxWidthOrHeight: 1024, // Resize to max 1024px
-                        useWebWorker: true,
-                    };
+            setOriginalFile(file);
+            await processFile(file);
+        }
+    };
 
-                    const compressedFile = await imageCompression(file, options);
-                    setFileToUpload(compressedFile);
+    const handleDragOver = (e: React.DragEvent) => {
+        e.preventDefault();
+        setIsDragging(true);
+    };
 
-                    const reader = new FileReader();
-                    reader.onloadend = () => {
-                        const result = reader.result as string;
-                        setSelectedImage(result);
-                        analyzeImage(result);
-                    };
-                    reader.readAsDataURL(compressedFile);
-                } catch (error) {
-                    console.error("Compression failed:", error);
-                    alert("Failed to process image. Please try a different one.");
-                }
-            } else {
-                alert('Please upload a PNG or JPG image.');
-            }
+    const handleDragLeave = (e: React.DragEvent) => {
+        e.preventDefault();
+        setIsDragging(false);
+    };
+
+    const handleDrop = async (e: React.DragEvent) => {
+        e.preventDefault();
+        setIsDragging(false);
+        const file = e.dataTransfer.files?.[0];
+        if (file) {
+            setOriginalFile(file);
+            await processFile(file);
         }
     };
 
@@ -231,9 +295,14 @@ export default function UploadModal() {
                             {/* Image Upload Area */}
                             <div
                                 onClick={() => fileInputRef.current?.click()}
+                                onDragOver={handleDragOver}
+                                onDragLeave={handleDragLeave}
+                                onDrop={handleDrop}
                                 className={`group relative border-2 border-dashed rounded-2xl p-1 transition-all cursor-pointer overflow-hidden ${selectedImage
                                     ? 'border-purple-500/30 bg-purple-500/5'
-                                    : 'border-white/10 hover:border-purple-500/50 hover:bg-white/5'
+                                    : isDragging
+                                        ? 'border-purple-500 bg-purple-500/10 scale-[1.02]'
+                                        : 'border-white/10 hover:border-purple-500/50 hover:bg-white/5'
                                     }`}
                             >
                                 {selectedImage ? (
@@ -267,6 +336,37 @@ export default function UploadModal() {
                                     className="hidden"
                                 />
                             </div>
+
+                            {/* Resize Controls */}
+                            {selectedImage && (
+                                <div className="flex flex-col gap-3 bg-white/5 p-4 rounded-xl border border-white/10">
+                                    <div className="flex items-center justify-between">
+                                        <span className="text-sm font-medium text-gray-300">Image Size</span>
+                                        {imageDimensions && (
+                                            <span className="text-xs text-purple-400 font-mono bg-purple-500/10 px-2 py-1 rounded-md border border-purple-500/20">
+                                                {imageDimensions.width} × {imageDimensions.height} px ({imageDimensions.ratio})
+                                            </span>
+                                        )}
+                                    </div>
+                                    <div className="flex gap-2 w-full overflow-x-auto custom-scrollbar pb-1">
+                                        {(['original', 'large', 'medium', 'small'] as const).map((opt) => (
+                                            <button
+                                                key={opt}
+                                                onClick={() => handleResizeChange(opt)}
+                                                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all whitespace-nowrap ${resizeOption === opt
+                                                    ? 'bg-purple-500 text-white shadow-lg shadow-purple-500/25'
+                                                    : 'bg-white/5 text-gray-400 hover:bg-white/10 hover:text-white'
+                                                    }`}
+                                            >
+                                                {opt.charAt(0).toUpperCase() + opt.slice(1)}
+                                                {opt === 'large' && ' (1920px)'}
+                                                {opt === 'medium' && ' (1200px)'}
+                                                {opt === 'small' && ' (800px)'}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
 
                             {/* Prompt Input */}
                             <div className="space-y-3">
