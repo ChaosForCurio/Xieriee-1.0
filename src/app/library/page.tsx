@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { useUser } from "@stackframe/stack";
-import { ArrowLeft, Download, ExternalLink } from 'lucide-react';
+import { ArrowLeft, Image, Trash2 } from 'lucide-react';
 import Link from 'next/link';
 
 interface UserImage {
@@ -15,6 +15,9 @@ export default function LibraryPage() {
     const user = useUser();
     const [images, setImages] = useState<UserImage[]>([]);
     const [loading, setLoading] = useState(true);
+    const [deletingId, setDeletingId] = useState<number | null>(null);
+
+    const [imageToDelete, setImageToDelete] = useState<number | null>(null);
 
     useEffect(() => {
         if (user) {
@@ -36,6 +39,34 @@ export default function LibraryPage() {
         }
     };
 
+    const confirmDelete = (id: number) => {
+        setImageToDelete(id);
+    };
+
+    const handleDelete = async () => {
+        if (!imageToDelete) return;
+
+        const id = imageToDelete;
+        setDeletingId(id);
+        try {
+            const res = await fetch(`/api/library?id=${id}`, {
+                method: 'DELETE',
+            });
+
+            if (res.ok) {
+                setImages(images.filter(img => img.id !== id));
+                setImageToDelete(null);
+            } else {
+                alert('Failed to delete image');
+            }
+        } catch (error) {
+            console.error('Failed to delete image:', error);
+            alert('An error occurred while deleting');
+        } finally {
+            setDeletingId(null);
+        }
+    };
+
     if (!user) {
         return (
             <div className="min-h-screen bg-black text-white flex items-center justify-center">
@@ -51,7 +82,39 @@ export default function LibraryPage() {
     }
 
     return (
-        <div className="min-h-screen bg-black text-white">
+        <div className="min-h-screen bg-black text-white relative">
+            {/* Delete Confirmation Modal */}
+            {imageToDelete !== null && (
+                <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+                    <div className="bg-[#1a1a1a] border border-white/10 rounded-2xl p-6 max-w-sm w-full shadow-2xl transform transition-all scale-100">
+                        <h3 className="text-xl font-semibold mb-2 text-white">Delete Image?</h3>
+                        <p className="text-gray-400 mb-6">This action cannot be undone. The image will be permanently removed from your library.</p>
+                        <div className="flex gap-3">
+                            <button
+                                onClick={() => setImageToDelete(null)}
+                                className="flex-1 px-4 py-2.5 bg-white/5 hover:bg-white/10 text-white rounded-xl font-medium transition-colors"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={handleDelete}
+                                disabled={deletingId === imageToDelete}
+                                className="flex-1 px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-xl font-medium transition-colors flex items-center justify-center gap-2"
+                            >
+                                {deletingId === imageToDelete ? (
+                                    <div className="w-4 h-4 border-2 border-white/50 border-t-white rounded-full animate-spin" />
+                                ) : (
+                                    <>
+                                        <Trash2 size={18} />
+                                        <span>Delete</span>
+                                    </>
+                                )}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* Header */}
             <header className="fixed top-0 left-0 right-0 z-50 bg-black/80 backdrop-blur-md border-b border-white/10">
                 <div className="max-w-7xl mx-auto px-4 h-16 flex items-center gap-4">
@@ -71,7 +134,7 @@ export default function LibraryPage() {
                 ) : images.length === 0 ? (
                     <div className="text-center py-20">
                         <div className="w-16 h-16 bg-white/5 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                            <Download size={32} className="text-gray-500" />
+                            <Image size={32} className="text-gray-500" />
                         </div>
                         <h2 className="text-xl font-medium text-gray-300 mb-2">No images yet</h2>
                         <p className="text-gray-500 mb-6">Upload images in the chat to see them here.</p>
@@ -89,24 +152,14 @@ export default function LibraryPage() {
                                     className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
                                     loading="lazy"
                                 />
-                                <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-                                    <a
-                                        href={img.imageUrl}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="p-2 bg-white/10 hover:bg-white/20 rounded-lg text-white transition-colors"
-                                        title="View Full Size"
+                                <div className="absolute bottom-2 right-2 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity">
+                                    <button
+                                        onClick={() => confirmDelete(img.id)}
+                                        className="p-2 bg-black/60 hover:bg-red-600 text-white/80 hover:text-white rounded-full backdrop-blur-sm transition-all shadow-lg"
+                                        title="Delete"
                                     >
-                                        <ExternalLink size={20} />
-                                    </a>
-                                    <a
-                                        href={img.imageUrl}
-                                        download
-                                        className="p-2 bg-white/10 hover:bg-white/20 rounded-lg text-white transition-colors"
-                                        title="Download"
-                                    >
-                                        <Download size={20} />
-                                    </a>
+                                        <Trash2 size={18} />
+                                    </button>
                                 </div>
                             </div>
                         ))}
