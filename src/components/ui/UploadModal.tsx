@@ -106,11 +106,9 @@ export default function UploadModal() {
         setIsSharing(true);
 
         const newItem = {
-            id: Date.now(),
             user: user?.displayName || 'Anonymous',
             avatar: user?.profileImageUrl || 'https://i.pravatar.cc/150?img=68',
             prompt: prompt.trim(),
-            likes: 0,
             image: selectedImage
         };
 

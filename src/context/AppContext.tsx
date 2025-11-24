@@ -52,7 +52,7 @@ interface AppContextType {
     loadChat: (chatId: string) => void;
     deleteChat: (chatId: string) => void;
     communityFeed: FeedItem[];
-    addToFeed: (item: Omit<FeedItem, 'id' | 'userId' | 'userAvatar' | 'userName' | 'createdAt' | 'likes'>, file?: File) => Promise<void>;
+    addToFeed: (item: Omit<FeedItem, 'id' | 'userId' | 'userAvatar' | 'userName' | 'createdAt' | 'likes' | 'likedBy'>, file?: File) => Promise<void>;
     deleteFeedItem: (id: string) => Promise<void>;
     likeFeedItem: (id: string) => Promise<void>;
     uploadImage: (file: File) => Promise<string>;
@@ -173,7 +173,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
     const toggleUploadModal = () => setIsUploadModalOpen(!isUploadModalOpen);
 
-    const addToFeed = async (item: Omit<FeedItem, 'id' | 'userId' | 'userAvatar' | 'userName' | 'createdAt' | 'likes'>, file?: File) => {
+    const addToFeed = async (item: Omit<FeedItem, 'id' | 'userId' | 'userAvatar' | 'userName' | 'createdAt' | 'likes' | 'likedBy'>, file?: File) => {
         // Create a temporary ID for optimistic update
         const tempId = String(Date.now());
         const newItem: FeedItem = {
