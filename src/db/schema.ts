@@ -49,3 +49,11 @@ export const communityFeed = pgTable('community_feed', {
     likes: integer('likes').default(0),
     createdAt: timestamp('created_at').defaultNow().notNull(),
 });
+
+export const userImages = pgTable('user_images', {
+    id: serial('id').primaryKey(),
+    userId: text('user_id').notNull(),
+    imageUrl: text('image_url').notNull(),
+    publicId: text('public_id'), // For Cloudinary management
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+});

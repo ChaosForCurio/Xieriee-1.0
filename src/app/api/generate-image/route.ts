@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server';
 import { stackServerApp } from '@/stack';
 import { isRateLimited } from '@/lib/db-actions';
+import { db } from '@/db';
+import { userImages } from '@/db/schema';
 
 export const maxDuration = 300; // 5 minutes
 
@@ -155,6 +157,18 @@ export async function POST(request: Request) {
             }
 
             if (imageUrl) {
+                // Save to Database
+                try {
+                    await db.insert(userImages).values({
+                        userId: user.id,
+                        imageUrl: imageUrl,
+                        publicId: `generated-${taskId}`, // Use task ID as a pseudo-public ID
+                    });
+                } catch (dbError) {
+                    console.error('Failed to save generated image to DB:', dbError);
+                    // Continue even if DB save fails, as the user still wants the image
+                }
+
                 return NextResponse.json({
                     success: true,
                     data: {

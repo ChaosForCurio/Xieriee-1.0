@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { v2 as cloudinary } from 'cloudinary';
 import { stackServerApp } from '@/stack';
 import { isRateLimited } from '@/lib/db-actions';
+import { db } from '@/db';
+import { userImages } from '@/db/schema';
 
 export const maxDuration = 300; // 5 minutes timeout for uploads
 
@@ -88,6 +90,13 @@ export async function POST(request: Request) {
         console.error('Upload API: Stream write error:', streamError);
         reject(streamError);
       }
+    });
+
+    // 5. Save to Database
+    await db.insert(userImages).values({
+      userId: user.id,
+      imageUrl: result.secure_url,
+      publicId: result.public_id,
     });
 
     return NextResponse.json({ url: result.secure_url });

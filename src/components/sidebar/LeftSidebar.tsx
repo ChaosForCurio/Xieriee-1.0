@@ -2,7 +2,7 @@
 /* eslint-disable @next/next/no-img-element */
 
 import React from 'react';
-import { MessageSquare, Plus, Settings, MoreHorizontal, Trash2, LogOut } from 'lucide-react';
+import { MessageSquare, Plus, Settings, MoreHorizontal, Trash2, LogOut, Library } from 'lucide-react';
 import { useApp } from '@/context/AppContext';
 import Toggle3D from '../ui/Toggle3D';
 import { useUser, UserButton } from "@stackframe/stack";
@@ -122,6 +122,19 @@ export default function LeftSidebar() {
                     <div className="text-left">
                         <div className="text-sm font-medium text-gray-200 group-hover:text-white">Upload Image</div>
                         <div className="text-[10px] text-gray-500 group-hover:text-gray-400">Share with community</div>
+                    </div>
+                </button>
+
+                <button
+                    onClick={() => window.location.href = '/library'}
+                    className="w-full flex items-center gap-3 px-3 py-2 mb-2 hover:bg-white/5 rounded-lg transition-colors group"
+                >
+                    <div className="p-1.5 bg-white/5 rounded-md text-gray-400 group-hover:text-white transition-colors">
+                        <Library size={16} />
+                    </div>
+                    <div className="text-left">
+                        <div className="text-sm font-medium text-gray-200 group-hover:text-white">Library</div>
+                        <div className="text-[10px] text-gray-500 group-hover:text-gray-400">View your uploads</div>
                     </div>
                 </button>
 

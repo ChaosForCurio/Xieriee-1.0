@@ -122,35 +122,22 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
                 console.warn("Image compression failed, proceeding with original file:", error);
             }
 
-            // 2. Get Signature
-            const signRes = await fetch('/api/sign-cloudinary', { method: 'POST' });
-            if (!signRes.ok) {
-                const error = await signRes.json();
-                throw new Error(error.error || 'Failed to get upload signature');
-            }
-            const signData = await signRes.json();
-
-            // 3. Upload to Cloudinary
+            // 2. Upload via Server API (which handles Cloudinary + DB persistence)
             const formData = new FormData();
             formData.append('file', compressedFile);
-            formData.append('api_key', signData.api_key);
-            formData.append('timestamp', signData.timestamp);
-            formData.append('signature', signData.signature);
-            formData.append('folder', signData.folder);
 
-            const cloudName = signData.cloud_name;
-            const uploadRes = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, {
+            const res = await fetch('/api/upload', {
                 method: 'POST',
                 body: formData,
             });
 
-            if (!uploadRes.ok) {
-                const errorData = await uploadRes.json();
-                throw new Error(errorData.error?.message || 'Cloudinary upload failed');
+            if (!res.ok) {
+                const errorData = await res.json();
+                throw new Error(errorData.error || 'Upload failed');
             }
 
-            const data = await uploadRes.json();
-            return data.secure_url;
+            const data = await res.json();
+            return data.url;
         } catch (error: any) {
             console.error("Upload failed:", error);
             throw new Error(error.message || 'Upload failed');

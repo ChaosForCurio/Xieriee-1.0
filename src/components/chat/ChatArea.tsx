@@ -67,12 +67,13 @@ const PDFMessage = ({ pdfUrl }: { pdfUrl: string }) => {
 };
 
 export default function ChatArea() {
-    const { inputPrompt, setInputPrompt, chatHistory, addMessage, toggleLeftSidebar, toggleRightSidebar, isLeftSidebarOpen, isRightSidebarOpen, generateImage, isGeneratingImage, currentChatId } = useApp();
+    const { inputPrompt, setInputPrompt, chatHistory, addMessage, toggleLeftSidebar, toggleRightSidebar, isLeftSidebarOpen, isRightSidebarOpen, generateImage, isGeneratingImage, currentChatId, uploadImage } = useApp();
     const user = useUser();
     const [isLoading, setIsLoading] = useState(false);
     const [avatarMode, setAvatarMode] = useState<'default' | 'searching' | 'creative'>('default');
     const [lastImageContext, setLastImageContext] = useState<any>(null);
     const [selectedImage, setSelectedImage] = useState<string | null>(null);
+    const [selectedFile, setSelectedFile] = useState<File | null>(null);
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -119,6 +120,7 @@ export default function ChatArea() {
         const file = e.target.files?.[0];
         if (file) {
             if (file.type === 'image/png' || file.type === 'image/jpeg' || file.type === 'image/jpg' || file.type === 'application/pdf') {
+                setSelectedFile(file); // Store file for upload
                 const reader = new FileReader();
                 reader.onloadend = async () => {
                     try {
@@ -149,6 +151,7 @@ export default function ChatArea() {
 
     const handleRemoveImage = () => {
         setSelectedImage(null);
+        setSelectedFile(null);
         if (fileInputRef.current) fileInputRef.current.value = '';
     };
 
@@ -189,15 +192,27 @@ export default function ChatArea() {
 
         setInputPrompt(''); // Clear input immediately
         setSelectedImage(null); // Clear image immediately
+        setSelectedFile(null); // Clear file immediately
 
         // Reset textarea height immediately
         if (textareaRef.current) {
             textareaRef.current.style.height = 'auto';
         }
 
-        // Use the compressed base64 image directly (no Cloudinary upload)
-        // It will be persisted in localStorage automatically
-        const finalImageUrl = selectedImage;
+        // Upload image if present (and not PDF for now, or handle PDF upload too if needed)
+        // We use the original file for upload to ensure quality and persistence
+        let finalImageUrl = selectedImage;
+
+        if (selectedFile && !selectedFile.type.includes('pdf')) {
+            try {
+                // Upload to library/Cloudinary
+                finalImageUrl = await uploadImage(selectedFile);
+            } catch (error) {
+                console.error("Failed to upload image:", error);
+                addMessage('ai', '❌ Failed to upload image. Please try again.');
+                return;
+            }
+        }
 
         // Check if it's an image generation command
         if (prompt.toLowerCase().startsWith('@image ')) {
