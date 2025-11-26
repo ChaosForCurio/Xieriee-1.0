@@ -1,4 +1,4 @@
-import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold, Content, Part } from "@google/generative-ai";
+import { GoogleGenAI } from "@google/genai";
 import { setGlobalDispatcher, Agent } from 'undici';
 
 // Fix for UND_ERR_CONNECT_TIMEOUT (force IPv4)
@@ -14,21 +14,124 @@ setGlobalDispatcher(new Agent({
   }
 }));
 
-let genAI: GoogleGenerativeAI | null = null;
+let ai: GoogleGenAI | null = null;
 
-const getModel = (modelName: string = "gemini-1.5-flash", customSystemInstruction?: string) => {
+const getAI = () => {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
     throw new Error("GEMINI_API_KEY is not set in environment variables.");
   }
 
-  if (!genAI) {
-    genAI = new GoogleGenerativeAI(apiKey);
+  if (!ai) {
+    ai = new GoogleGenAI({ apiKey });
   }
+  return ai;
+};
 
-  return genAI.getGenerativeModel({
-    model: modelName,
-    systemInstruction: customSystemInstruction || `You are "From Heaven To Horizon" — a highly intelligent, fast, structured, and creative AI assistant.
+// Helper for retry logic with exponential backoff
+async function retryOperation<T>(operation: () => Promise<T>, retries = 3, delay = 1000): Promise<T> {
+  try {
+    return await operation();
+  } catch (error: any) {
+    if (retries > 0 && (error.message?.includes('429') || error.status === 429 || error.status === 503 || error.message?.includes('404'))) {
+      console.warn(`Gemini API rate limited/unavailable. Retrying in ${delay}ms... (${retries} retries left)`);
+      await new Promise(resolve => setTimeout(resolve, delay));
+      return retryOperation(operation, retries - 1, delay * 2);
+    }
+    throw error;
+  }
+}
+
+// Define a compatible Content type since we are removing @google/generative-ai
+export interface Content {
+  role: string;
+  parts: { text?: string; inlineData?: { mimeType: string; data: string } }[];
+}
+
+export async function generateImageWithGemini(prompt: string): Promise<string> {
+  const aiClient = getAI();
+  console.log('Attempting Gemini Image Generation (imagen-3.0-generate-001)...');
+
+  try {
+    // @ts-ignore
+    const response: any = await aiClient.models.generateImages({
+      model: 'imagen-3.0-generate-001',
+      prompt: prompt,
+      config: {
+        numberOfImages: 1,
+        aspectRatio: '1:1', // Default to square
+      }
+    });
+
+    // Handle various potential response structures
+    const image = response.generatedImages?.[0]?.image?.toString('base64')
+      || response.generatedImages?.[0]?.image
+      || response.images?.[0]
+      || response.data?.images?.[0];
+
+    if (!image) {
+      // Try to log the response to see what we got if it fails
+      console.error('Gemini Image Gen Response:', JSON.stringify(response, null, 2));
+      throw new Error('No image returned from Gemini');
+    }
+
+    // If it's already a data URL, return it. If it's raw base64, prefix it.
+    if (image.startsWith('data:image')) {
+      return image;
+    }
+    return `data:image/png;base64,${image}`;
+
+  } catch (error: any) {
+    console.error('Gemini Image Generation Error:', error);
+    throw error;
+  }
+}
+
+export async function getGeminiResponse(prompt: string, image?: string, context?: string, history?: Content[], customSystemInstruction?: string) {
+  const aiClient = getAI();
+
+  // Internal function to attempt generation with a specific model
+  const attemptGeneration = async (modelName: string) => {
+    console.log(`Attempting Gemini generation with model: ${modelName}`);
+
+    let contents: any[] = [];
+
+    // Handle history if provided
+    if (history && history.length > 0) {
+      contents = [...history];
+    }
+
+    const finalPrompt = context ? `${context}\n\nUser Prompt: ${prompt}` : prompt;
+
+    const userContent: any = {
+      role: 'user',
+      parts: []
+    };
+
+    if (image) {
+      const base64Data = image.split(',')[1];
+      const mimeType = image.split(';')[0].split(':')[1];
+      userContent.parts.push({
+        inlineData: {
+          mimeType: mimeType,
+          data: base64Data
+        }
+      });
+    }
+
+    userContent.parts.push({ text: finalPrompt });
+    contents.push(userContent);
+
+    const config: any = {
+      model: modelName,
+      contents: contents,
+    };
+
+    if (customSystemInstruction) {
+      config.systemInstruction = customSystemInstruction;
+    } else {
+      // Default system instruction
+      config.systemInstruction = `You are "From Heaven To Horizon" — a highly intelligent, fast, structured, and creative AI assistant.
 
 Your personality:
 - Friendly, calm, and confident
@@ -424,80 +527,24 @@ Do not include markdown code blocks (e.g. triple backticks json ...). Just the r
 
 🎯 FINAL NOTE
 This ONE prompt controls: frontend behavior, backend behavior, memory engine, image editing, image regeneration, context-aware alterations.
-`
-  });
-};
-
-// Helper for retry logic with exponential backoff
-async function retryOperation<T>(operation: () => Promise<T>, retries = 3, delay = 1000): Promise<T> {
-  try {
-    return await operation();
-  } catch (error: any) {
-    if (retries > 0 && (error.message?.includes('429') || error.status === 429 || error.status === 503 || error.message?.includes('404'))) {
-      console.warn(`Gemini API rate limited/unavailable. Retrying in ${delay}ms... (${retries} retries left)`);
-      await new Promise(resolve => setTimeout(resolve, delay));
-      return retryOperation(operation, retries - 1, delay * 2);
+`;
     }
-    throw error;
-  }
-}
 
-export async function getGeminiResponse(prompt: string, image?: string, context?: string, history?: Content[], customSystemInstruction?: string) {
-  // Internal function to attempt generation with a specific model
-  const attemptGeneration = async (modelName: string) => {
-    console.log(`Attempting Gemini generation with model: ${modelName}`);
+    console.log(`Calling Gemini API (${modelName})...`);
 
-    if (image) {
-      const content: Part[] = [];
-      const base64Data = image.split(',')[1];
-      const mimeType = image.split(';')[0].split(':')[1];
+    // Wrap in retry logic
+    const result = await retryOperation(async () => {
+      return await aiClient.models.generateContent(config);
+    });
 
-      content.push({
-        inlineData: {
-          data: base64Data,
-          mimeType: mimeType
-        }
-      });
-
-      const finalPrompt = context ? `${context}\n\nUser Prompt: ${prompt}` : prompt;
-      content.push({ text: finalPrompt });
-
-      const modelInstance = getModel(modelName, customSystemInstruction);
-
-      // Wrap in retry logic
-      const result = await retryOperation(async () => {
-        return await modelInstance.generateContent(content);
-      });
-
-      const response = await result.response;
-      return response.text();
-    } else {
-      const modelInstance = getModel(modelName, customSystemInstruction);
-
-      const chat = modelInstance.startChat({
-        history: history || [],
-        generationConfig: {
-          maxOutputTokens: 8000,
-        },
-      });
-
-      const finalPrompt = context ? `${context}\n\nUser Prompt: ${prompt}` : prompt;
-      console.log(`Calling Gemini API (${modelName})...`);
-
-      // Wrap in retry logic
-      const result = await retryOperation(async () => {
-        return await chat.sendMessage(finalPrompt);
-      });
-
-      console.log("Gemini API response received.");
-      const response = await result.response;
-      return response.text();
-    }
+    console.log("Gemini API response received.");
+    console.log("Gemini API response received.");
+    return result.text || "";
   };
 
   try {
-    // Try with the primary stable model first
-    return await attemptGeneration("gemini-2.0-flash-exp");
+    // Try with the new primary model
+    return await attemptGeneration("gemini-2.5-flash");
   } catch (error: any) {
     // Check if it's a rate limit or overload error that persisted through retries
     if (error.message?.includes('429') || error.status === 429 || error.status === 503 || error.message?.includes('404')) {

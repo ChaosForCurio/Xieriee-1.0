@@ -4,7 +4,7 @@ import { getGroqResponse } from '@/lib/groq';
 import { stackServerApp } from '@/stack';
 import { getMemories, saveMemory, forgetMemory, formatMemoriesForContext } from '@/lib/memory';
 import { saveMessage, getChatHistory, saveSummary, getSummary, isRateLimited, ensureChat } from '@/lib/db-actions';
-import { Content } from "@google/generative-ai";
+import { Content } from '@/lib/gemini';
 import { performWebSearch } from '@/lib/serper';
 
 export async function POST(request: Request) {
@@ -222,7 +222,7 @@ DO NOT say you cannot generate images. You CAN. Just output the JSON.
         // Let's use the `messages` from the request for the `history` param, as it's what the user sees.
         // But we inject the `summary` from DB into the `context`.
 
-        const clientHistory = messages ? messages.slice(-10).map((msg: { role: string; content: string }) => ({
+        const clientHistory: Content[] = messages ? messages.slice(-10).map((msg: { role: string; content: string }) => ({
             role: msg.role === 'user' ? 'user' : 'model',
             parts: [{ text: msg.content }]
         })) : [];
@@ -230,6 +230,7 @@ DO NOT say you cannot generate images. You CAN. Just output the JSON.
         // 4. Get AI Response
         let rawResponse = "";
         try {
+            // @ts-ignore
             rawResponse = await getGeminiResponse(finalPrompt, image, context, clientHistory);
             console.log("Gemini Raw Response:", rawResponse);
         } catch (error: any) {

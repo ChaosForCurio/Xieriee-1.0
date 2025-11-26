@@ -14,7 +14,7 @@ if (apiKey) {
 
 export async function getGroqResponse(
     prompt: string,
-    history: { role: string; parts: { text: string }[] }[] = [],
+    history: { role: string; parts: { text?: string }[] }[] = [],
     context?: string
 ): Promise<string> {
     if (!groq) {
@@ -23,9 +23,10 @@ export async function getGroqResponse(
 
     try {
         // Convert Gemini history format to Groq format
+        // Convert Gemini history format to Groq format
         const messages: any[] = history.map((msg) => ({
             role: msg.role === 'model' ? 'assistant' : 'user',
-            content: msg.parts[0].text,
+            content: msg.parts[0].text || "",
         }));
 
         // Construct the final prompt with context if available

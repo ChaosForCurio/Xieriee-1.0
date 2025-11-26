@@ -26,6 +26,7 @@ export async function POST(request: Request) {
 
         try {
             // Try Gemini first
+            // @ts-ignore
             responseText = await getGeminiResponse(
                 prompt,
                 image,

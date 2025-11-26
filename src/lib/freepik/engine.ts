@@ -1,4 +1,5 @@
 import { ALL_MODELS, IMAGE_MODELS, VIDEO_MODELS } from './config';
+import { generateImageWithGemini } from '../gemini';
 import { ModelConfig, GenerationOptions, ModelType } from './types';
 import { cache } from './cache';
 import { rateLimiter } from './rate-limiter';
@@ -24,10 +25,31 @@ export class FreepikEngine {
             return await this.handleGeneration('image', options);
         } catch (error: any) {
             console.error('Freepik image generation failed:', error.message);
+
+            // 1. Try Bytez Fallback (Google Imagen 4)
             if (this.bytezApiKey) {
                 console.log('Attempting fallback to Bytez (Google Imagen 4)...');
-                return await this.generateWithBytez(options.prompt);
+                try {
+                    return await this.generateWithBytez(options.prompt);
+                } catch (bytezError: any) {
+                    console.error('Bytez fallback failed:', bytezError.message);
+                    // Continue to next fallback
+                }
             }
+
+            // 2. Try Gemini Fallback (Imagen 3)
+            console.log('Attempting fallback to Gemini (Imagen 3)...');
+            try {
+                const geminiImage = await generateImageWithGemini(options.prompt);
+                return {
+                    data: {
+                        generated: [{ url: geminiImage }]
+                    }
+                };
+            } catch (geminiError: any) {
+                console.error('Gemini fallback failed:', geminiError.message);
+            }
+
             throw error;
         }
     }

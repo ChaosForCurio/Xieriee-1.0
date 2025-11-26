@@ -10,8 +10,8 @@ function RotatingVideoIcon() {
 
     useFrame((state) => {
         if (groupRef.current) {
-            groupRef.current.rotation.y = state.clock.elapsedTime * 0.8;
-            groupRef.current.rotation.x = Math.sin(state.clock.elapsedTime * 0.5) * 0.2;
+            (groupRef.current as any).rotation.y = state.clock.elapsedTime * 0.8;
+            (groupRef.current as any).rotation.x = Math.sin(state.clock.elapsedTime * 0.5) * 0.2;
         }
     });
 
@@ -38,12 +38,12 @@ function RotatingVideoIcon() {
                 </mesh>
 
                 {/* Film Reels (Decorations) */}
-                <mesh position={[-0.5, 0.6, 0]}>
-                    <cylinderGeometry args={[0.3, 0.3, 0.1, 16]} rotation={[Math.PI / 2, 0, 0]} />
+                <mesh position={[-0.5, 0.6, 0]} rotation={[Math.PI / 2, 0, 0]}>
+                    <cylinderGeometry args={[0.3, 0.3, 0.1, 16]} />
                     <meshStandardMaterial color="#b91c1c" wireframe />
                 </mesh>
-                <mesh position={[0.5, 0.6, 0]}>
-                    <cylinderGeometry args={[0.3, 0.3, 0.1, 16]} rotation={[Math.PI / 2, 0, 0]} />
+                <mesh position={[0.5, 0.6, 0]} rotation={[Math.PI / 2, 0, 0]}>
+                    <cylinderGeometry args={[0.3, 0.3, 0.1, 16]} />
                     <meshStandardMaterial color="#b91c1c" wireframe />
                 </mesh>
             </group>
