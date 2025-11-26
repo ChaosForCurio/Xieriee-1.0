@@ -4,6 +4,9 @@ import React, { useEffect, useState } from 'react';
 import { useUser } from "@stackframe/stack";
 import { ArrowLeft, Image, Trash2 } from 'lucide-react';
 import Link from 'next/link';
+import Lenis from '@studio-freight/lenis';
+import gsap from 'gsap';
+import { ScrollTrigger } from 'gsap/ScrollTrigger';
 
 interface UserImage {
     id: number;
@@ -18,6 +21,36 @@ export default function LibraryPage() {
     const [deletingId, setDeletingId] = useState<number | null>(null);
 
     const [imageToDelete, setImageToDelete] = useState<number | null>(null);
+
+    useEffect(() => {
+        gsap.registerPlugin(ScrollTrigger);
+
+        const lenis = new Lenis({
+            duration: 1.2,
+            easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
+            direction: 'vertical',
+            gestureDirection: 'vertical',
+            smooth: true,
+            mouseMultiplier: 1,
+            smoothTouch: false,
+            touchMultiplier: 2,
+        } as any);
+
+        lenis.on('scroll', () => ScrollTrigger.update());
+
+        const update = (time: number) => {
+            lenis.raf(time * 1000);
+        };
+
+        gsap.ticker.add(update);
+
+        gsap.ticker.lagSmoothing(0);
+
+        return () => {
+            lenis.destroy();
+            gsap.ticker.remove(update);
+        };
+    }, []);
 
     useEffect(() => {
         if (user) {

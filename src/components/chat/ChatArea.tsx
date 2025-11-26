@@ -10,6 +10,7 @@ import { compressImage } from '@/lib/imageUtils';
 import GeminiLogo3D from '../ui/GeminiLogo3D';
 import Toggle3D from '../ui/Toggle3D';
 import ImageGenerationSkeleton from '../ui/ImageGenerationSkeleton';
+import VideoGenerationSkeleton from '../ui/VideoGenerationSkeleton';
 import MessageSkeleton from '../ui/MessageSkeleton';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -66,8 +67,28 @@ const PDFMessage = ({ pdfUrl }: { pdfUrl: string }) => {
     );
 };
 
+const VideoMessage = ({ videoUrl, onDownload }: { videoUrl: string, onDownload: (url: string) => void }) => {
+    return (
+        <div className="mb-3 mt-1 relative group inline-block rounded-xl overflow-hidden bg-black/20 min-h-[100px]">
+            <video
+                src={videoUrl}
+                controls
+                className="max-w-full rounded-xl shadow-lg border border-white/10"
+                style={{ maxHeight: '400px' }}
+            />
+            <button
+                onClick={() => onDownload(videoUrl)}
+                className="absolute bottom-12 right-2 p-2 bg-black/60 hover:bg-black/80 text-white rounded-full backdrop-blur-sm transition-all border border-white/20 shadow-lg opacity-0 group-hover:opacity-100"
+                title="Download Video"
+            >
+                <Download size={20} />
+            </button>
+        </div>
+    );
+};
+
 export default function ChatArea() {
-    const { inputPrompt, setInputPrompt, chatHistory, addMessage, toggleLeftSidebar, toggleRightSidebar, isLeftSidebarOpen, isRightSidebarOpen, generateImage, isGeneratingImage, currentChatId, uploadImage } = useApp();
+    const { inputPrompt, setInputPrompt, chatHistory, addMessage, toggleLeftSidebar, toggleRightSidebar, isLeftSidebarOpen, isRightSidebarOpen, generateImage, isGeneratingImage, generateVideo, isGeneratingVideo, currentChatId, uploadImage } = useApp();
     const user = useUser();
     const [isLoading, setIsLoading] = useState(false);
     const [avatarMode, setAvatarMode] = useState<'default' | 'searching' | 'creative'>('default');
@@ -124,17 +145,33 @@ export default function ChatArea() {
                 const reader = new FileReader();
                 reader.onloadend = async () => {
                     try {
+                        if (reader.error) {
+                            throw new Error(`FileReader error: ${reader.error.message}`);
+                        }
                         const base64 = reader.result as string;
+                        if (!base64) {
+                            throw new Error('FileReader result is empty');
+                        }
 
+                        let finalImage = base64;
                         if (file.type === 'application/pdf') {
                             // No compression for PDFs
                             setSelectedImage(base64);
                         } else {
                             // Compress image before setting state
                             // Limit to 1200px width and 0.6 quality to avoid payload issues
-                            const compressed = await compressImage(base64, 1200, 0.6);
-                            setSelectedImage(compressed);
+                            finalImage = await compressImage(base64, 1200, 0.6);
+                            setSelectedImage(finalImage);
                         }
+
+                        // Instant Action: Auto-send
+                        // If user typed a prompt, use it. Otherwise default based on file type.
+                        const defaultPrompt = file.type === 'application/pdf' ? "Analyze this PDF" : "Describe this image";
+                        const promptToUse = inputPrompt.trim() || defaultPrompt;
+
+                        // We need to pass the file and image explicitly because state updates (setSelectedImage) are async
+                        // and won't be reflected in handleSend immediately if called right here.
+                        handleSend(promptToUse, finalImage, file);
                     } catch (error) {
                         console.error("File processing failed:", error);
                         // Fallback to original if compression fails, but warn
@@ -184,10 +221,14 @@ export default function ChatArea() {
         scrollToBottom();
     }, [chatHistory, isLoading]);
 
-    const handleSend = async () => {
-        if ((!inputPrompt.trim() && !selectedImage) || isLoading) return;
+    const handleSend = async (overridePrompt?: string, overrideImage?: string | null, overrideFile?: File | null) => {
+        const activePrompt = overridePrompt !== undefined ? overridePrompt : inputPrompt.trim();
+        const activeImage = overrideImage !== undefined ? overrideImage : selectedImage;
+        const activeFile = overrideFile !== undefined ? overrideFile : selectedFile;
 
-        const prompt = inputPrompt.trim();
+        if ((!activePrompt && !activeImage) || isLoading) return;
+
+        const prompt = activePrompt;
 
 
         setInputPrompt(''); // Clear input immediately
@@ -201,12 +242,12 @@ export default function ChatArea() {
 
         // Upload image if present (and not PDF for now, or handle PDF upload too if needed)
         // We use the original file for upload to ensure quality and persistence
-        let finalImageUrl = selectedImage;
+        let finalImageUrl = activeImage;
 
-        if (selectedFile && !selectedFile.type.includes('pdf')) {
+        if (activeFile && !activeFile.type.includes('pdf')) {
             try {
                 // Upload to library/Cloudinary
-                finalImageUrl = await uploadImage(selectedFile);
+                finalImageUrl = await uploadImage(activeFile);
             } catch (error) {
                 console.error("Failed to upload image:", error);
                 addMessage('ai', '❌ Failed to upload image. Please try again.');
@@ -242,6 +283,32 @@ export default function ChatArea() {
                 }
             } catch (error) {
                 console.error('Image generation error:', error);
+                addMessage('ai', `❌ Error: ${error instanceof Error ? error.message : 'Unknown error'} `);
+            }
+            return;
+            return;
+        }
+
+        // Check if it's a video generation command
+        if (prompt.toLowerCase().startsWith('@video ')) {
+            const videoDescription = prompt.slice(7).trim();
+
+            if (!videoDescription) {
+                addMessage('ai', 'Please provide a description for the video after @video');
+                return;
+            }
+
+            addMessage('user', prompt);
+
+            try {
+                const videoUrl = await generateVideo(videoDescription, 'kling-std');
+                if (videoUrl) {
+                    addMessage('ai', `![Generated Video](${videoUrl})`);
+                } else {
+                    addMessage('ai', '❌ Video generation failed. Please check the console for details.');
+                }
+            } catch (error) {
+                console.error('Video generation error:', error);
                 addMessage('ai', `❌ Error: ${error instanceof Error ? error.message : 'Unknown error'} `);
             }
             return;
@@ -361,6 +428,22 @@ export default function ChatArea() {
                 } catch (error) {
                     console.error('Auto-image generation error:', error);
                     addMessage('ai', `❌ Error generating image: ${error instanceof Error ? error.message : 'Unknown error'} `);
+                }
+            }
+
+            // Handle Video Generation Action
+            if (data.action === 'generate_video' && data.freepik_prompt) {
+                try {
+                    const videoUrl = await generateVideo(data.freepik_prompt, 'kling-std');
+
+                    if (videoUrl) {
+                        addMessage('ai', `![Generated Video](${videoUrl})`);
+                    } else {
+                        addMessage('ai', '❌ Video generation failed. Please check the console for details.');
+                    }
+                } catch (error) {
+                    console.error('Auto-video generation error:', error);
+                    addMessage('ai', `❌ Error generating video: ${error instanceof Error ? error.message : 'Unknown error'} `);
                 }
             }
 
@@ -508,21 +591,22 @@ export default function ChatArea() {
                                         : 'bg-transparent text-gray-100 rounded-tl-sm'
                                         } `}>
                                         {(() => {
-                                            // Check for markdown image syntax
-                                            const imageMatch = msg.content.match(/!\[.*?\]\((.*?)\)/);
+                                            // Check for video markdown syntax first to prevent it being caught as an image
+                                            const videoMatch = msg.content.match(/!\[Generated Video\]\((.*?)\)/);
+                                            const videoUrl = videoMatch ? videoMatch[1] : null;
+
+                                            // Check for markdown image syntax, but exclude if it's already identified as a video
+                                            const imageMatch = msg.content.match(/!\[(?!Generated Video).*?\]\((.*?)\)/);
                                             const imageUrl = imageMatch ? imageMatch[1] : null;
 
                                             // Check for PDF attachment syntax
                                             const pdfMatch = msg.content.match(/\[PDF Attachment\]\((.*?)\)/);
                                             const pdfUrl = pdfMatch ? pdfMatch[1] : null;
 
-                                            // Remove the image markdown from the text to avoid double rendering
-                                            // but keep the rest of the message
-                                            // Remove the image/pdf markdown from the text to avoid double rendering
-                                            // but keep the rest of the message
                                             let textContent = msg.content;
                                             if (imageUrl) textContent = textContent.replace(/!\[.*?\]\(.*?\)/, '');
                                             if (pdfUrl) textContent = textContent.replace(/\[PDF Attachment\]\(.*?\)/, '');
+                                            if (videoUrl) textContent = textContent.replace(/!\[Generated Video\]\(.*?\)/, '');
                                             textContent = textContent.trim();
 
                                             return (
@@ -536,6 +620,12 @@ export default function ChatArea() {
                                                     )}
                                                     {pdfUrl && (
                                                         <PDFMessage pdfUrl={pdfUrl} />
+                                                    )}
+                                                    {videoUrl && (
+                                                        <VideoMessage
+                                                            videoUrl={videoUrl}
+                                                            onDownload={handleDownload}
+                                                        />
                                                     )}
                                                     {textContent && (
                                                         msg.role === 'ai' ? (
@@ -591,6 +681,29 @@ export default function ChatArea() {
                                     </div>
                                     <div className="max-w-[80%] md:max-w-[60%] w-full">
                                         <ImageGenerationSkeleton />
+                                    </div>
+                                </motion.div>
+                            )}
+                            {isGeneratingVideo && (
+                                <motion.div
+                                    initial={{ opacity: 0, y: 10 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    className="flex gap-4 justify-start"
+                                >
+                                    <div className="w-10 h-10 rounded-full overflow-hidden shrink-0 mt-1 bg-black/20 border border-white/10">
+                                        {/* Mobile/Tablet Avatar */}
+                                        <img
+                                            src="https://www.notebookcheck.com/fileadmin/Notebooks/News/_nc4/google-gemini_0051.jpg"
+                                            alt="AI"
+                                            className="w-full h-full object-cover md:hidden"
+                                        />
+                                        {/* Desktop Avatar */}
+                                        <div className="hidden md:block w-full h-full">
+                                            <GeminiLogo3D mode="creative" />
+                                        </div>
+                                    </div>
+                                    <div className="max-w-[80%] md:max-w-[60%] w-full">
+                                        <VideoGenerationSkeleton />
                                     </div>
                                 </motion.div>
                             )}
@@ -680,7 +793,7 @@ export default function ChatArea() {
                         </div>
 
                         <button
-                            onClick={handleSend}
+                            onClick={() => handleSend()}
                             disabled={!user || (!inputPrompt.trim() && !selectedImage) || isLoading}
                             className={`p-3 rounded-full transition-all duration-300 ${user && (inputPrompt.trim() || selectedImage) && !isLoading ? 'bg-white text-black hover:bg-gray-200' : 'bg-white/10 text-white/30 cursor-not-allowed'
                                 } `}

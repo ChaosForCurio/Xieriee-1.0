@@ -55,7 +55,7 @@ export default function ImageGenerationSkeleton() {
                     Constructing Visuals...
                 </span>
             </div>
-            <Canvas eventSource={containerRef as React.RefObject<HTMLElement>} camera={{ position: [0, 0, 6], fov: 45 }}>
+            <Canvas camera={{ position: [0, 0, 6], fov: 45 }}>
                 <ambientLight intensity={0.5} />
                 <pointLight position={[10, 10, 10]} intensity={1} color="#a855f7" />
                 <pointLight position={[-10, -10, -10]} intensity={0.5} color="#3b82f6" />

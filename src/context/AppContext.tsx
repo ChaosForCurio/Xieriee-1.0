@@ -60,6 +60,8 @@ interface AppContextType {
     setUserAvatar: (avatar: string) => void;
     isGeneratingImage: boolean;
     generateImage: (prompt: string, model?: string, image?: string) => Promise<string | null>;
+    isGeneratingVideo: boolean;
+    generateVideo: (prompt: string, model?: string) => Promise<string | null>;
     currentChatId: string;
 }
 
@@ -76,6 +78,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     const [userAvatar, setUserAvatar] = useState('https://i.pravatar.cc/150?img=68');
     const [currentChatId, setCurrentChatId] = useState<string>(`chat-${Date.now()}`);
     const [isGeneratingImage, setIsGeneratingImage] = useState(false);
+    const [isGeneratingVideo, setIsGeneratingVideo] = useState(false);
 
     // Refs for optimization
     const user = useUser();
@@ -546,6 +549,38 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         }
     };
 
+    const generateVideo = async (prompt: string, model: string = 'kling-std'): Promise<string | null> => {
+        setIsGeneratingVideo(true);
+        try {
+            const res = await fetch('/api/generate-video', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ prompt, model }),
+            });
+
+            const text = await res.text();
+            let data;
+            try {
+                data = JSON.parse(text);
+            } catch (e) {
+                console.error('[Generate Video] Failed to parse JSON:', e);
+                throw new Error(`Server returned ${res.status} ${res.statusText}`);
+            }
+
+            if (data.success && data.data?.video) {
+                return data.data.video.url;
+            } else {
+                console.warn('Video generation failed:', data.error);
+                throw new Error(data.error || 'Video generation failed');
+            }
+        } catch (error) {
+            console.error('Video generation error:', error);
+            return null;
+        } finally {
+            setIsGeneratingVideo(false);
+        }
+    };
+
     return (
         <AppContext.Provider value={{
             inputPrompt,
@@ -563,6 +598,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             currentChatId,
             isGeneratingImage,
             generateImage,
+            isGeneratingVideo,
+            generateVideo,
             savedChats,
             startNewChat,
             loadChat,

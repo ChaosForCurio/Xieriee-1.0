@@ -1,0 +1,31 @@
+Starting full image generation test...
+Start Response: {
+  "data": {
+    "task_id": "c8f7f7ac-86de-42da-a927-c954acd9c445",
+    "status": "CREATED",
+    "generated": []
+  }
+}
+Polling task c8f7f7ac-86de-42da-a927-c954acd9c445...
+Status: IN_PROGRESS
+Status: IN_PROGRESS
+Status: IN_PROGRESS
+Status: IN_PROGRESS
+Status: IN_PROGRESS
+Status: IN_PROGRESS
+Status: IN_PROGRESS
+Status: COMPLETED
+COMPLETED! Final Response:
+{
+  "data": {
+    "task_id": "c8f7f7ac-86de-42da-a927-c954acd9c445",
+    "status": "COMPLETED",
+    "generated": [
+      "https://ai-statics.freepik.com/content/mg-upscaler/wxjttossmrc6zgkjrzkk5tkse4/2d0847f4-61f3-4fd9-a337-4d20df105c21_f6e0906e-2136-4910-958e-32521122395f.png?token=exp=1764067757~hmac=25eed63e6f8a2930daffebb0b469a68a"
+    ],
+    "has_nsfw": [
+      false
+    ]
+  }
+}
+Image URL: undefined

@@ -141,6 +141,29 @@ DO NOT say you cannot generate images. You CAN. Just output the JSON.
             }
         }
 
+        // Video Generation Logic
+        if (prompt && prompt.trim().toLowerCase().startsWith('@video')) {
+            console.log("Step 3.2: Video Generation Triggered");
+            const videoPrompt = prompt.replace(/@video/i, '').trim();
+
+            if (videoPrompt) {
+                // We return a special JSON response to tell the frontend to trigger the video generation
+                // or we can handle it here if we want the AI to "say" something about it.
+                // However, the current architecture seems to rely on the AI returning a JSON action for images.
+                // Let's replicate that pattern for videos.
+
+                // We'll inject a system note to force the AI to generate the video action JSON.
+                context += `SYSTEM INSTRUCTION: The user wants to generate a video with the prompt: "${videoPrompt}".\n`;
+                context += `You MUST return a JSON response with the action "generate_video" and the prompt "${videoPrompt}".\n`;
+                context += `Do not output plain text. Output ONLY the JSON object.\n`;
+                context += `Example: { "action": "generate_video", "freepik_prompt": "${videoPrompt}" }\n`;
+
+                finalPrompt = `Generate a video for: ${videoPrompt}`;
+            } else {
+                context += "SYSTEM NOTE: The user typed @video but provided no prompt. Ask them what video they want to generate.\n\n";
+            }
+        }
+
         // A. Facts (Existing Memory System) - DISABLED per user request for isolated context
         // if (userId !== 'anonymous') {
         //     const memories = await getMemories(userId);
@@ -410,6 +433,32 @@ Rules:
                                     return NextResponse.json({
                                         response: finalResponse,
                                         action: 'generate_image',
+                                        freepik_prompt: parsed.freepik_prompt
+                                    });
+                                }
+
+                                if (parsed.action === 'generate_video' && parsed.freepik_prompt) {
+                                    const before = rawResponse.substring(0, i);
+                                    const after = rawResponse.substring(endIndex + 1);
+                                    let cleanBefore = before.trim();
+                                    let cleanAfter = after.trim();
+
+                                    if (cleanBefore.endsWith('```json')) cleanBefore = cleanBefore.substring(0, cleanBefore.length - 7);
+                                    else if (cleanBefore.endsWith('```')) cleanBefore = cleanBefore.substring(0, cleanBefore.length - 3);
+
+                                    if (cleanAfter.startsWith('```')) cleanAfter = cleanAfter.substring(3);
+
+                                    finalResponse = (cleanBefore + '\n' + cleanAfter).trim();
+
+                                    if (!finalResponse) {
+                                        finalResponse = `Generating video based on prompt: "${parsed.freepik_prompt}"...`;
+                                    }
+
+                                    await saveMessage(userId, chatId, 'ai', finalResponse);
+
+                                    return NextResponse.json({
+                                        response: finalResponse,
+                                        action: 'generate_video',
                                         freepik_prompt: parsed.freepik_prompt
                                     });
                                 }

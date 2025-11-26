@@ -29,6 +29,9 @@ export const compressImage = async (base64Str: string, maxWidth = 1600, quality 
             const compressedBase64 = canvas.toDataURL('image/jpeg', quality);
             resolve(compressedBase64);
         };
-        img.onerror = (err) => reject(err);
+        img.onerror = (err) => {
+            console.error('Image compression error:', err);
+            reject(new Error('Failed to load image for compression'));
+        };
     });
 };

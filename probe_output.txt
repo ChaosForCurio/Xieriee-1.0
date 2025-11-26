@@ -1,0 +1,4 @@
+https://api.freepik.com/v1/ai/text-to-video/dummy: 404
+https://api.freepik.com/v1/videos/dummy: 404
+https://api.freepik.com/v1/ai/videos/dummy: 404
+https://api.freepik.com/v1/ai/tasks/dummy: 404

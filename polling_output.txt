@@ -1,0 +1,22 @@
+Starting task at: https://api.freepik.com/v1/ai/image-to-video/kling-v2
+Task Started: {
+  "data": {
+    "task_id": "b022e6ed-6830-4ca1-8a72-86b2eb02173c",
+    "status": "CREATED",
+    "generated": []
+  }
+}
+Got Task ID: b022e6ed-6830-4ca1-8a72-86b2eb02173c
+------------------------------------------------
+Testing polling URL: https://api.freepik.com/v1/ai/image-to-video/kling-v2/b022e6ed-6830-4ca1-8a72-86b2eb02173c
+Status: 200
+Response: {"data":{"task_id":"b022e6ed-6830-4ca1-8a72-86b2eb02173c","status":"IN_PROGRESS","generated":[]}}
+SUCCESS! Found working polling endpoint: https://api.freepik.com/v1/ai/image-to-video/kling-v2/b022e6ed-6830-4ca1-8a72-86b2eb02173c
+------------------------------------------------
+Testing polling URL: https://api.freepik.com/v1/ai/image-to-video/b022e6ed-6830-4ca1-8a72-86b2eb02173c
+Status: 404
+Failed with: 404 {"message":"Not found"}
+------------------------------------------------
+Testing polling URL: https://api.freepik.com/v1/videos/b022e6ed-6830-4ca1-8a72-86b2eb02173c
+Status: 400
+Failed with: 400 {"message":"Your request parameters didn't validate.","invalid_params":[{"name":"videoId","reason":"The video id must be an integer."}]}
