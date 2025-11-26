@@ -4,9 +4,7 @@ import React, { useEffect, useState } from 'react';
 import { useUser } from "@stackframe/stack";
 import { ArrowLeft, Image, Trash2 } from 'lucide-react';
 import Link from 'next/link';
-import Lenis from '@studio-freight/lenis';
-import gsap from 'gsap';
-import { ScrollTrigger } from 'gsap/ScrollTrigger';
+
 
 interface UserImage {
     id: number;
@@ -21,36 +19,6 @@ export default function LibraryPage() {
     const [deletingId, setDeletingId] = useState<number | null>(null);
 
     const [imageToDelete, setImageToDelete] = useState<number | null>(null);
-
-    useEffect(() => {
-        gsap.registerPlugin(ScrollTrigger);
-
-        const lenis = new Lenis({
-            duration: 1.2,
-            easing: (t: number) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
-            direction: 'vertical',
-            gestureDirection: 'vertical',
-            smooth: true,
-            mouseMultiplier: 1,
-            smoothTouch: false,
-            touchMultiplier: 2,
-        } as any);
-
-        lenis.on('scroll', () => ScrollTrigger.update());
-
-        const update = (time: number) => {
-            lenis.raf(time * 1000);
-        };
-
-        gsap.ticker.add(update);
-
-        gsap.ticker.lagSmoothing(0);
-
-        return () => {
-            lenis.destroy();
-            gsap.ticker.remove(update);
-        };
-    }, []);
 
     useEffect(() => {
         if (user) {
@@ -115,7 +83,7 @@ export default function LibraryPage() {
     }
 
     return (
-        <div className="min-h-screen bg-black text-white relative">
+        <div className="h-screen bg-black text-white relative flex flex-col overflow-hidden">
             {/* Delete Confirmation Modal */}
             {imageToDelete !== null && (
                 <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
@@ -149,7 +117,7 @@ export default function LibraryPage() {
             )}
 
             {/* Header */}
-            <header className="fixed top-0 left-0 right-0 z-50 bg-black/80 backdrop-blur-md border-b border-white/10">
+            <header className="flex-none z-50 bg-black/80 backdrop-blur-md border-b border-white/10">
                 <div className="max-w-7xl mx-auto px-4 h-16 flex items-center gap-4">
                     <Link href="/" className="p-2 hover:bg-white/10 rounded-lg transition-colors">
                         <ArrowLeft size={20} />
@@ -159,45 +127,47 @@ export default function LibraryPage() {
             </header>
 
             {/* Content */}
-            <main className="pt-24 pb-12 px-4 max-w-7xl mx-auto">
-                {loading ? (
-                    <div className="flex items-center justify-center h-64">
-                        <div className="w-8 h-8 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" />
-                    </div>
-                ) : images.length === 0 ? (
-                    <div className="text-center py-20">
-                        <div className="w-16 h-16 bg-white/5 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                            <Image size={32} className="text-gray-500" />
+            <main className="flex-1 overflow-y-auto custom-scrollbar p-4">
+                <div className="max-w-7xl mx-auto pb-12">
+                    {loading ? (
+                        <div className="flex items-center justify-center h-64">
+                            <div className="w-8 h-8 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" />
                         </div>
-                        <h2 className="text-xl font-medium text-gray-300 mb-2">No images yet</h2>
-                        <p className="text-gray-500 mb-6">Upload images in the chat to see them here.</p>
-                        <Link href="/" className="px-6 py-2 bg-purple-600 text-white rounded-lg font-medium hover:bg-purple-700 transition-colors">
-                            Go to Chat
-                        </Link>
-                    </div>
-                ) : (
-                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                        {images.map((img) => (
-                            <div key={img.id} className="group relative aspect-square bg-white/5 rounded-xl overflow-hidden border border-white/5 hover:border-purple-500/50 transition-colors">
-                                <img
-                                    src={img.imageUrl}
-                                    alt={`Upload ${img.id}`}
-                                    className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
-                                    loading="lazy"
-                                />
-                                <div className="absolute bottom-2 right-2 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity">
-                                    <button
-                                        onClick={() => confirmDelete(img.id)}
-                                        className="p-2 bg-black/60 hover:bg-red-600 text-white/80 hover:text-white rounded-full backdrop-blur-sm transition-all shadow-lg"
-                                        title="Delete"
-                                    >
-                                        <Trash2 size={18} />
-                                    </button>
-                                </div>
+                    ) : images.length === 0 ? (
+                        <div className="text-center py-20">
+                            <div className="w-16 h-16 bg-white/5 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                                <Image size={32} className="text-gray-500" />
                             </div>
-                        ))}
-                    </div>
-                )}
+                            <h2 className="text-xl font-medium text-gray-300 mb-2">No images yet</h2>
+                            <p className="text-gray-500 mb-6">Upload images in the chat to see them here.</p>
+                            <Link href="/" className="px-6 py-2 bg-purple-600 text-white rounded-lg font-medium hover:bg-purple-700 transition-colors">
+                                Go to Chat
+                            </Link>
+                        </div>
+                    ) : (
+                        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                            {images.map((img) => (
+                                <div key={img.id} className="group relative aspect-square bg-white/5 rounded-xl overflow-hidden border border-white/5 hover:border-purple-500/50 transition-colors">
+                                    <img
+                                        src={img.imageUrl}
+                                        alt={`Upload ${img.id}`}
+                                        className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                                        loading="lazy"
+                                    />
+                                    <div className="absolute bottom-2 right-2 opacity-100 lg:opacity-0 lg:group-hover:opacity-100 transition-opacity">
+                                        <button
+                                            onClick={() => confirmDelete(img.id)}
+                                            className="p-2 bg-black/60 hover:bg-red-600 text-white/80 hover:text-white rounded-full backdrop-blur-sm transition-all shadow-lg"
+                                            title="Delete"
+                                        >
+                                            <Trash2 size={18} />
+                                        </button>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
             </main>
         </div>
     );
